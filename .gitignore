@@ -1,1 +1,3 @@
 mercury-chess/frontend/
+frontend/
+__pycache__/
