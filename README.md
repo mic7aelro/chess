@@ -92,6 +92,8 @@ mercury-chess/
 │   │   └── analysis.py           # POST /api/analysis/ and /eval endpoints
 │   └── services/
 │       └── engine.py             # Stockfish integration, classification, accuracy
+├── docs/
+│   └── move-classifications.md   # High-level and low-level logic for each classification
 └── frontend/                     # Local only — not tracked in git
     ├── src/
     │   ├── app/
@@ -104,6 +106,8 @@ mercury-chess/
     │   │   ├── EvalGraph.tsx     # Recharts area chart with click-to-navigate
     │   │   ├── MoveList.tsx      # Move list with inline explore branches
     │   │   └── AccuracyCards.tsx # Per-player accuracy, Elo, classification counts
+    │   ├── lib/
+    │   │   └── library.ts        # Shared utility functions
     │   └── types/
     │       └── index.ts          # Shared TypeScript interfaces
     └── package.json
@@ -252,27 +256,40 @@ This is an Elo-based sigmoid where a 400cp advantage corresponds to approximatel
 
 | Classification | Symbol | Condition | Colour |
 |----------------|--------|-----------|--------|
-| **Book**       | `⊕`   | Move is in Lichess Masters opening theory | Gray |
-| **Brilliant**  | `!!`  | Surprise piece sacrifice, still best/excellent, WP < 0.90 before move | `#1fada8` |
-| **Great**      | `!`   | Only viable resource; large gap to second-best move (WP gap > 15%) | `#5c8fff` |
-| **Best**       | `★`   | WP loss < 0.5% | `#6fbc5b` |
-| **Excellent**  | `✓`   | WP loss < 2% | `#96bc4b` |
-| **Good**       | `●`   | WP loss < 5% | Gray |
-| **Inaccuracy** | `?!`  | WP loss < 10% | `#f4bf00` |
-| **Mistake**    | `?`   | WP loss < 20% | `#e07b2a` |
-| **Miss**       | `⊘`   | Had ≥ 85% WP, dropped below 75%, lost ≥ 20% WP | `#e05c2a` |
-| **Blunder**    | `??`  | WP loss ≥ 20% | `#ca3431` |
+| **Book**       | `⊕`   | Move is in Lichess opening theory (Masters or general DB) | `#a0784a` |
+| **Brilliant**  | `!!`  | Material sacrifice or surprising quiet queen move; WP loss < 2%; position still playable (WP ≥ 40%) | `#1fada8` |
+| **Great**      | `!`   | Only viable resource; WP gap to second-best > 25%; contested position (12% < WP < 88%) | `#5c8fff` |
+| **Miss**       | `⊘`   | Had ≥ 85% WP before, dropped below 75%, lost ≥ 20% WP | `#e05c2a` |
+| **Best**       | `★`   | WP loss < 0.8% | `#6fbc5b` |
+| **Excellent**  | `✦`   | WP loss 0.8%–2.5% | `#6fbc5b` |
+| **Good**       | `✓`   | WP loss 2.5%–6% | `#96bc4b` |
+| **Inaccuracy** | `?!`  | WP loss 6%–12% | `#f4bf00` |
+| **Mistake**    | `?`   | WP loss 12%–22% | `#e07b2a` |
+| **Blunder**    | `??`  | WP loss ≥ 22% | `#ca3431` |
 
 ### Brilliant Move Detection
 
-A move is a candidate for Brilliant if all of the following are true:
+A move is flagged as a Brilliant candidate by `_is_brilliant()` via two paths. Both require the moving piece to be worth ≥ 300cp (minor piece or higher).
 
-1. The move was **not** among the engine's top suggestions (`multipv=3`)
-2. The moving piece is worth ≥ 300cp (bishop, knight, rook, or queen)
-3. After the move, the piece lands on a square where it is **attacked by the opponent**
-4. The captured piece (if any) is worth **less** than the moving piece (net sacrifice)
+**Path 1 — Material sacrifice:**
+- The piece moves to a square where it can be captured (it is hanging after the move)
+- Net material loss ≥ 200cp (e.g. knight for a pawn, or piece for nothing)
+- Major-piece sacrifices (rook/queen, net ≥ 500cp) are brilliant **without** requiring surprise
+- Smaller sacrifices require the move to be a `surprise` (not in the engine's shallow top-5 at depth 5)
 
-If the move additionally has WP loss < 2% and the position was not already a forced win (WP < 90%), it is classified Brilliant.
+**Path 2 — Surprising quiet queen move:**
+- Moving piece is a queen (value ≥ 900cp); no capture made; piece is not hanging after
+- Move is a `surprise` (not in the engine's shallow top-5)
+- Position was not already clearly winning before (`win_prob < 0.80`)
+- Rooks are excluded — relocating to an open file is standard, not brilliant
+
+**Final gate in `_classify()`:** even if flagged brilliant, all must hold:
+- WP loss < 2%
+- `score_mover > −100cp` (position is not clearly bad after)
+- `win_prob(score_mover) ≥ 0.40` (still playable/winning)
+- For non-sacrifices: position was not already completely won (`win_prob(score_before) < 0.95`)
+
+> See `docs/move-classifications.md` for the full logic of every classification type.
 
 ---
 
@@ -322,9 +339,10 @@ The backend walks each position from the start of the game, querying the API unt
 The last recognised opening name and ECO code are returned as `opening` in the analysis response and displayed in the frontend review panel.
 
 **Implementation details:**
-- Capped at ply 40 (move 20) to prevent excessive API calls
-- 3-second timeout per request; silently stops book detection on any network error
-- Uses `urllib` (no third-party HTTP dependency)
+- Capped at ply 20 (move 10) — games virtually never stay in book beyond this
+- 4-second timeout per request; silently stops book detection on any network error
+- Uses `requests` with a persistent session (no repeated handshakes)
+- Optionally authenticated via `LICHESS_TOKEN` env var for higher rate limits
 
 ---
 
