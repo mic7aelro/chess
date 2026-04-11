@@ -78,6 +78,7 @@ A Chess.com-style game review and analysis tool built with a FastAPI backend and
 | Backend  | Python 3.12+, FastAPI 0.115, Uvicorn                                        |
 | Engine   | Stockfish (via python-chess UCI bridge)                                     |
 | Openings | Lichess Masters Explorer API (no key required)                              |
+| Hosting  | Vercel (frontend) · Railway (backend) · MongoDB Atlas (database)            |
 
 ---
 
@@ -94,7 +95,7 @@ mercury-chess/
 │       └── engine.py             # Stockfish integration, classification, accuracy
 ├── docs/
 │   └── move-classifications.md   # High-level and low-level logic for each classification
-└── frontend/                     # Local only — not tracked in git
+└── frontend/                     # Next.js app — deployed to Vercel
     ├── src/
     │   ├── app/
     │   │   ├── page.tsx          # Root page, all state management
