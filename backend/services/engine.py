@@ -354,18 +354,23 @@ def _is_brilliant(board: chess.Board, move: chess.Move, surprise: bool, score_be
     piece_hanging  = board_copy.is_attacked_by(board_copy.turn, move.to_square)
     net_sacrifice  = moving_value - captured_value
 
-    # Path 1 — material sacrifice
-    if piece_hanging and net_sacrifice >= 200:
-        # Check whether the mover has a recapture available on the landing square.
-        # If the mover can recapture with a piece of LOWER or EQUAL value, it is a
-        # trade (or favourable exchange), not a genuine sacrifice.
+    # Path 1 — material sacrifice (includes exchange sacrifices: rook for minor)
+    if piece_hanging and net_sacrifice >= 150:
         mover_defenders = [
             sq for sq in board_copy.attackers(board.turn, move.to_square)
             if board_copy.piece_at(sq)
         ]
         if mover_defenders:
-            # The mover has a recapture available — this is a trade, not a sacrifice.
-            return False, False
+            # Only block if the cheapest recapture is CHEAPER than the piece just
+            # moved — that means the mover gets material back (a trade, not a
+            # sacrifice). If the cheapest recapture costs equal or more, the mover
+            # is still down material overall (genuine exchange sacrifice).
+            min_recapture = min(
+                _PIECE_VALUES.get(board_copy.piece_at(sq).piece_type, 0)
+                for sq in mover_defenders
+            )
+            if min_recapture < moving_value:
+                return False, False
         return True, True
 
     # Paths below require surprise

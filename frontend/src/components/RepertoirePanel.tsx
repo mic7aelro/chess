@@ -163,13 +163,13 @@ function LineView({
             </span>
           );
         })}
-        {/* Opening name at end of chain */}
-        {lineName && (
-          <span className="text-[10px] text-white/25 font-sans ml-1 shrink-0 italic truncate max-w-[120px]" title={lineName}>
-            {lineName}
-          </span>
-        )}
       </div>
+      {/* Opening name on its own line so it never gets squeezed */}
+      {lineName && (
+        <p className="text-[10px] text-white/25 italic pl-1 pb-0.5 leading-tight" title={lineName}>
+          {lineName}
+        </p>
+      )}
       {/* Branch alternatives */}
       {branches.map((child, i) => (
         <LineView
