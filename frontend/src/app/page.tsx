@@ -733,7 +733,7 @@ export default function Home() {
           if (cancelled || deepFenRef.current !== fen) break;
           const data: { eval: number; top_lines: TopLine[]; depth: number } = await res.json();
           if (cancelled || deepFenRef.current !== fen) break;
-          setDeepLines(data.top_lines);
+          setDeepLines(data.top_lines ?? []);
           setDeepDepth(data.depth);
         } catch { break; }
       }
@@ -820,7 +820,7 @@ export default function Home() {
       <div className="sticky top-0 h-screen w-52 shrink-0 flex flex-col border-r border-zinc-800 bg-black z-20">
         {/* Branding */}
         <div className="flex items-center justify-center gap-2.5 px-5 border-b border-zinc-800" style={{ height: 48 }}>
-          <span className="text-white font-bold text-base tracking-tight">Mercury Chess</span>
+          <span className="text-white font-bold text-base tracking-tight">mic7aelr<span className="text-white">/</span>chess</span>
         </div>
         {/* Nav tabs */}
         <div className="flex flex-col pt-3 px-2 gap-0.5">

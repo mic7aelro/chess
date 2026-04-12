@@ -22,12 +22,26 @@
 
 ---
 
-## Phase 1 — Ship It (mercurychess.mic7aelr.com)
+## Rebrand (mic7aelr/chess)
+
+- [x] Rename GitHub repo to `chess`
+- [x] Rename local folder to `chess`
+- [x] Update top-left UI branding to `mic7aelr/chess`
+- [x] Update page title in layout.tsx
+- [ ] Update Vercel project name + domain to `chess.mic7aelr.com`
+- [ ] Update Railway service name
+- [ ] Update CLAUDE.md + README to reflect new name
+- [ ] New favicon / logo if needed
+
+---
+
+## Phase 1 — Ship It (chess.mic7aelr.com)
 
 - [ ] Deploy frontend as standalone Vercel project
-- [ ] Deploy FastAPI backend to Railway or Fly.io
+- [ ] Deploy FastAPI backend to Railway
 - [ ] Set production env vars: `MONGODB_URI`, `CORS_ORIGINS`
-- [ ] Add subdomain `mercurychess.mic7aelr.com` via CNAME → Vercel
+- [ ] Add subdomain `chess.mic7aelr.com` via CNAME → Vercel (see docs/DEPLOY.md)
+- [ ] HTTP Basic Auth via env vars (`HTTP_BASIC_USER` / `HTTP_BASIC_PASS`) for private access
 - [ ] PWA manifest (`manifest.json`) — name, icons, `display: standalone`
 - [ ] iOS/Android meta tags in `<head>` for Add to Home Screen
 - [ ] Test install on iPhone (Safari → Share → Add to Home Screen) and Android
@@ -47,7 +61,7 @@
 
 - [ ] Chess.com username field in settings
 - [ ] Poll `api.chess.com/pub/player/{username}/games/{year}/{month}` for recent games
-- [ ] Detect games not yet in Mercury library → auto-analyse + save
+- [ ] Detect games not yet in library → auto-analyse + save
 - [ ] Auto-folder: "Chess.com — {Month Year}"
 - [ ] Badge/notification when new reviewed games are ready
 - [ ] Toggle: auto-review on/off, how many recent games to pull
