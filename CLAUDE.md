@@ -81,6 +81,7 @@ mercury-chess/
 - **SSE streaming** — `/api/analysis/stream` streams progress events then final result
 - **Interactive eval** — `/api/analysis/eval` uses persistent engine instance (no per-request startup)
 - **Best move endpoint** — `/api/analysis/best-move` for play-vs-engine
+- **Tablebase probe** — `/api/analysis/tablebase` proxies Lichess Syzygy (≤7 pieces); shown inline with DTM/DTZ
 - **Explore mode** — drag pieces in analysis to branch; `ExploreFrame` stack; Esc to return
 - **Progressive deepening** — sequential eval requests (depth steps) updating engine lines live
 - **Library** — save/load games with folder organisation, stored in MongoDB Atlas
