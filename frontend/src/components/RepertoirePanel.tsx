@@ -25,6 +25,7 @@ interface TreeNode {
   san: string;
   fen: string;         // FEN after this move
   fenBefore: string;   // FEN before this move (key for repertoire lookup)
+  moveUci: string;     // UCI of this move (needed for delete)
   isPlayer: boolean;
   moveNum: number;
   children: TreeNode[];
@@ -47,56 +48,37 @@ const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 function buildTree(
   fen: string,
-  prepMap: Map<string, { san: string; move: string }>,
+  movesMap: Map<string, RepertoireMove[]>,
   playerColor: 'white' | 'black',
   depth = 0,
 ): TreeNode[] {
   if (depth > 30) return [];
 
-  const c = new Chess(fen);
-  const isPlayerTurn = (c.turn() === 'w') === (playerColor === 'white');
+  const movesFromHere = movesMap.get(normFen(fen)) ?? [];
+  const result: TreeNode[] = [];
 
-  if (isPlayerTurn) {
-    const prep = prepMap.get(normFen(fen));
-    if (!prep) return [];
-    const from = prep.move.slice(0, 2);
-    const to   = prep.move.slice(2, 4);
-    const promo = prep.move.length > 4 ? prep.move[4] : undefined;
-    let moved;
-    try { moved = c.move({ from, to, ...(promo ? { promotion: promo } : {}) }); }
-    catch { return []; }
-    if (!moved) return [];
-    const newFen = c.fen();
-    return [{
-      san: prep.san,
-      fen: newFen,
-      fenBefore: fen,
-      isPlayer: true,
-      moveNum: c.moveNumber(),
-      children: buildTree(newFen, prepMap, playerColor, depth + 1),
-    }];
-  } else {
-    // Opponent's turn — find all legal moves that lead to positions with prep
-    const legal = c.moves({ verbose: true });
-    const result: TreeNode[] = [];
-    for (const lm of legal) {
+  for (const mv of movesFromHere) {
+    const from  = mv.move.slice(0, 2);
+    const to    = mv.move.slice(2, 4);
+    const promo = mv.move.length > 4 ? mv.move[4] : undefined;
+    try {
       const copy = new Chess(fen);
-      copy.move(lm);
+      const moved = copy.move({ from, to, ...(promo ? { promotion: promo } : {}) });
+      if (!moved) continue;
       const newFen = copy.fen();
-      const sub = buildTree(newFen, prepMap, playerColor, depth + 1);
-      if (sub.length > 0) {
-        result.push({
-          san: lm.san,
-          fen: newFen,
-          fenBefore: fen,
-          isPlayer: false,
-          moveNum: copy.moveNumber(),
-          children: sub,
-        });
-      }
-    }
-    return result;
+      result.push({
+        san: mv.san,
+        fen: newFen,
+        fenBefore: fen,
+        moveUci: mv.move,
+        isPlayer: mv.isPlayerMove,
+        moveNum: copy.moveNumber(),
+        children: buildTree(newFen, movesMap, playerColor, depth + 1),
+      });
+    } catch { continue; }
   }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +96,7 @@ function TreeView({
   depth?: number;
   onNavigate: (fen: string) => void;
   activeFen: string;
-  onDelete: (fenBefore: string) => void;
+  onDelete: (fenBefore: string, moveUci: string) => void;
   playerColor: 'white' | 'black';
 }) {
   if (nodes.length === 0) return null;
@@ -156,7 +138,7 @@ function TreeView({
               {/* Delete button — only on player moves */}
               {node.isPlayer && (
                 <button
-                  onClick={() => onDelete(node.fenBefore)}
+                  onClick={() => onDelete(node.fenBefore, node.moveUci)}
                   className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all ml-auto shrink-0"
                 >
                   <Trash2 size={11} />
@@ -211,17 +193,30 @@ export function RepertoirePanel({ onBack }: Props) {
   }, [color]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
-  // Prep map & tree (memoised)
+  // Moves map & prep map (memoised)
   // ---------------------------------------------------------------------------
+  // movesMap: normFen → all saved moves from that position (player + opponent)
+  const movesMap = useMemo(() => {
+    const m = new Map<string, RepertoireMove[]>();
+    moves.forEach(mv => {
+      const key = normFen(mv.fen);
+      const arr = m.get(key) ?? [];
+      arr.push(mv);
+      m.set(key, arr);
+    });
+    return m;
+  }, [moves]);
+
+  // prepMap: normFen → player move only (for drill / build feedback)
   const prepMap = useMemo(() => {
     const m = new Map<string, { san: string; move: string }>();
-    moves.forEach(mv => m.set(normFen(mv.fen), { san: mv.san, move: mv.move }));
+    moves.filter(mv => mv.isPlayerMove).forEach(mv => m.set(normFen(mv.fen), { san: mv.san, move: mv.move }));
     return m;
   }, [moves]);
 
   const tree = useMemo(
-    () => buildTree(STARTING_FEN, prepMap, color),
-    [prepMap, color],
+    () => buildTree(STARTING_FEN, movesMap, color),
+    [movesMap, color],
   );
 
   const prepAtCurrent = prepMap.get(normFen(fen)) ?? null;
@@ -255,24 +250,24 @@ export function RepertoirePanel({ onBack }: Props) {
     if (!moved) return false;
 
     const newFen = c.fen();
+    const isPlayerMove = (moved.color === 'w') === (color === 'white');
+    const moveUci = moved.from + moved.to + (moved.promotion ?? '');
 
-    // Was it the player's turn?
-    const wasPlayerTurn = (moved.color === 'w') === (color === 'white');
-    if (wasPlayerTurn) {
-      try {
-        const saved = await addRepertoireMove({
-          fen: normFen(fen),
-          move: moved.from + moved.to + (moved.promotion ?? ''),
-          san: moved.san,
-          color,
-          notes: '',
-        });
-        setMoves(prev => {
-          const filtered = prev.filter(m => normFen(m.fen) !== normFen(saved.fen));
-          return [...filtered, saved];
-        });
-      } catch (e) { console.error('Failed to save move', e); }
-    }
+    try {
+      const saved = await addRepertoireMove({
+        fen: normFen(fen),
+        move: moveUci,
+        san: moved.san,
+        color,
+        isPlayerMove,
+        notes: '',
+      });
+      setMoves(prev => {
+        // Replace any existing entry with the same fen+move combo
+        const filtered = prev.filter(m => !(normFen(m.fen) === normFen(saved.fen) && m.move === saved.move));
+        return [...filtered, saved];
+      });
+    } catch (e) { console.error('Failed to save move', e); }
 
     setHistory(prev => [...prev, moved.san]);
     setChess(new Chess(newFen));
@@ -280,11 +275,11 @@ export function RepertoirePanel({ onBack }: Props) {
     return true;
   }
 
-  async function handleDelete(fenBefore: string) {
-    const mv = moves.find(m => normFen(m.fen) === normFen(fenBefore));
+  async function handleDelete(fenBefore: string, moveUci: string) {
+    const mv = moves.find(m => normFen(m.fen) === normFen(fenBefore) && m.move === moveUci);
     if (!mv) return;
     try {
-      await deleteRepertoireMove(mv.fen, color);
+      await deleteRepertoireMove(mv.fen, mv.move, color);
       setMoves(prev => prev.filter(m => m.id !== mv.id));
     } catch (e) { console.error('Failed to delete', e); }
   }
@@ -307,7 +302,24 @@ export function RepertoirePanel({ onBack }: Props) {
   }
 
   function playOpponentMove(c: Chess) {
-    // Only play moves that lead to positions we have prep for (stays in tree)
+    // Prefer saved opponent moves from this position
+    const savedOpponent = (movesMap.get(normFen(c.fen())) ?? []).filter(mv => !mv.isPlayerMove);
+    if (savedOpponent.length > 0) {
+      const pick = savedOpponent[Math.floor(Math.random() * savedOpponent.length)];
+      const from  = pick.move.slice(0, 2);
+      const to    = pick.move.slice(2, 4);
+      const promo = pick.move.length > 4 ? pick.move[4] : undefined;
+      try {
+        const copy = new Chess(c.fen());
+        copy.move({ from, to, ...(promo ? { promotion: promo } : {}) });
+        const newFen = copy.fen();
+        setChess(new Chess(newFen));
+        setFen(newFen);
+        setHistory(prev => [...prev, pick.san]);
+        return;
+      } catch { /* fall through to legal-move fallback */ }
+    }
+    // Fallback: pick a legal move that leads to a position with prep
     const legal = c.moves({ verbose: true });
     const inTree = legal.filter(lm => {
       const copy = new Chess(c.fen());
@@ -381,12 +393,12 @@ export function RepertoirePanel({ onBack }: Props) {
 
   async function addCandidate(c: ImportCandidate) {
     try {
-      const saved = await addRepertoireMove({ fen: c.fen, move: c.move, san: c.san, color, notes: '' });
+      const saved = await addRepertoireMove({ fen: c.fen, move: c.move, san: c.san, color, isPlayerMove: true, notes: '' });
       setMoves(prev => {
-        const filtered = prev.filter(m => normFen(m.fen) !== normFen(saved.fen));
+        const filtered = prev.filter(m => !(normFen(m.fen) === normFen(saved.fen) && m.move === saved.move));
         return [...filtered, saved];
       });
-      setCandidates(prev => prev.filter(x => x.fen !== c.fen));
+      setCandidates(prev => prev.filter(x => !(x.fen === c.fen && x.move === c.move)));
     } catch (e) { console.error('Failed to add candidate', e); }
   }
 
@@ -441,8 +453,8 @@ export function RepertoirePanel({ onBack }: Props) {
                 },
                 darkSquareStyle:  { backgroundColor: '#769656' },
                 lightSquareStyle: { backgroundColor: '#eeeed2' },
-                darkSquareNotationStyle:  { color: '#eeeed2' },
-                lightSquareNotationStyle: { color: '#769656' },
+                darkSquareNotationStyle:  { color: '#eeeed2', fontWeight: '700', fontSize: '11px' },
+                lightSquareNotationStyle: { color: '#769656', fontWeight: '700', fontSize: '11px' },
                 boardStyle: { borderRadius: '4px' },
                 allowDragging: true,
                 animationDurationInMs: 150,

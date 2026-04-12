@@ -26,7 +26,7 @@ async def create_indexes():
     from db import get_db
     db = get_db()
     await db["repertoire"].create_index(
-        [("fen", 1), ("color", 1)], unique=True
+        [("fen", 1), ("move", 1), ("color", 1)], unique=True
     )
 
 

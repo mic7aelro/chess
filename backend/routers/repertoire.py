@@ -20,14 +20,16 @@ def normalise_fen(fen: str) -> str:
 
 class MoveAdd(BaseModel):
     fen: str
-    move: str     # UCI (e.g. "e2e4")
-    san: str      # display (e.g. "e4")
-    color: str    # "white" | "black"
+    move: str            # UCI (e.g. "e2e4")
+    san: str             # display (e.g. "e4")
+    color: str           # "white" | "black" — which repertoire this belongs to
+    is_player_move: bool = True
     notes: str = ""
 
 
 class MoveDelete(BaseModel):
     fen: str
+    move: str            # UCI — needed to identify exact move (multiple per position allowed)
     color: str
 
 
@@ -37,7 +39,7 @@ class MoveDelete(BaseModel):
 
 @router.get("")
 async def get_repertoire(color: str):
-    """Return all moves for a color as a flat list."""
+    """Return all moves for a color as a flat list (player + opponent moves)."""
     if color not in ("white", "black"):
         raise HTTPException(status_code=400, detail="color must be 'white' or 'black'")
     db = get_db()
@@ -45,19 +47,9 @@ async def get_repertoire(color: str):
     return [_fmt(d) for d in docs]
 
 
-@router.get("/position")
-async def get_position(fen: str, color: str):
-    """Return the repertoire move for a specific position, or null if none."""
-    if color not in ("white", "black"):
-        raise HTTPException(status_code=400, detail="color must be 'white' or 'black'")
-    db = get_db()
-    doc = await db["repertoire"].find_one({"fen": normalise_fen(fen), "color": color})
-    return _fmt(doc) if doc else None
-
-
 @router.post("", status_code=201)
 async def add_move(body: MoveAdd):
-    """Save a repertoire move. Upserts — one move per position per color."""
+    """Save a repertoire move. Unique per (fen, move, color) — multiple moves per position allowed."""
     if body.color not in ("white", "black"):
         raise HTTPException(status_code=400, detail="color must be 'white' or 'black'")
     db = get_db()
@@ -67,33 +59,33 @@ async def add_move(body: MoveAdd):
         "move": body.move,
         "san": body.san,
         "color": body.color,
+        "isPlayerMove": body.is_player_move,
         "notes": body.notes,
         "addedAt": datetime.now(timezone.utc),
     }
     await db["repertoire"].update_one(
-        {"fen": fen, "color": body.color},
+        {"fen": fen, "move": body.move, "color": body.color},
         {"$set": doc},
         upsert=True,
     )
-    result = await db["repertoire"].find_one({"fen": fen, "color": body.color})
+    result = await db["repertoire"].find_one({"fen": fen, "move": body.move, "color": body.color})
     return _fmt(result)
 
 
 @router.delete("", status_code=204)
 async def delete_move(body: MoveDelete):
-    """Remove the repertoire move for a position."""
+    """Remove a specific move (identified by fen + move UCI + color)."""
     db = get_db()
-    await db["repertoire"].delete_one(
-        {"fen": normalise_fen(body.fen), "color": body.color}
-    )
+    await db["repertoire"].delete_one({
+        "fen": normalise_fen(body.fen),
+        "move": body.move,
+        "color": body.color,
+    })
 
 
 @router.post("/import")
 async def import_from_games(color: str):
-    """
-    Scan saved games and extract opening moves (first 15 plies) for the given color.
-    Returns candidate lines — does not auto-save, frontend confirms before adding.
-    """
+    """Scan saved games and extract opening moves for the given color."""
     if color not in ("white", "black"):
         raise HTTPException(status_code=400, detail="color must be 'white' or 'black'")
 
@@ -107,7 +99,6 @@ async def import_from_games(color: str):
         {"pgn": 1, "white": 1, "black": 1},
     ).to_list(length=None)
 
-    # Collect candidate moves: fen → {move, san, count}
     candidates: dict[str, dict] = {}
 
     for game_doc in games:
@@ -121,14 +112,11 @@ async def import_from_games(color: str):
         if game is None:
             continue
 
-        # Determine which side this player is
         player_is_white = color == "white"
-
         board = game.board()
         for i, node in enumerate(game.mainline()):
-            if i >= 30:  # cap at move 15
+            if i >= 30:
                 break
-            # Only capture moves for the correct side
             is_white_turn = board.turn == chess.WHITE
             if is_white_turn != player_is_white:
                 board.push(node.move)
@@ -148,9 +136,7 @@ async def import_from_games(color: str):
             candidates[fen_key]["count"] += 1
             board.push(node.move)
 
-    # Sort by frequency descending
-    result = sorted(candidates.values(), key=lambda x: -x["count"])
-    return result
+    return sorted(candidates.values(), key=lambda x: -x["count"])
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +150,7 @@ def _fmt(doc: dict) -> dict:
         "move": doc["move"],
         "san": doc["san"],
         "color": doc["color"],
+        "isPlayerMove": doc.get("isPlayerMove", True),
         "notes": doc.get("notes", ""),
         "addedAt": int(doc["addedAt"].timestamp() * 1000),
     }

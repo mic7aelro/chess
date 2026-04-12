@@ -43,6 +43,7 @@ export interface RepertoireMove {
   move: string;   // UCI
   san: string;
   color: 'white' | 'black';
+  isPlayerMove: boolean;
   notes: string;
   addedAt: number;
 }

@@ -140,11 +140,12 @@ export async function addRepertoireMove(
 
 export async function deleteRepertoireMove(
   fen: string,
+  move: string,
   color: 'white' | 'black',
 ): Promise<void> {
   await repReq('', {
     method: 'DELETE',
-    body: JSON.stringify({ fen, color }),
+    body: JSON.stringify({ fen, move, color }),
   });
 }
 
