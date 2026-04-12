@@ -125,8 +125,8 @@ function TreeView({
         const isActive = normFen(node.fen) === normFen(activeFen);
         const movePrefix = node.isPlayer
           ? (playerColor === 'white'
-              ? `${node.moveNum - 1}.`
-              : `${node.moveNum}…`)
+              ? `${node.moveNum}.`
+              : `${node.moveNum - 1}…`)
           : null;
 
         return (
