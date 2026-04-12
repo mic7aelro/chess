@@ -624,16 +624,6 @@ export function RepertoirePanel({ onBack }: Props) {
         {/* Right column: engine + opening + tree */}
         <div className="flex flex-col flex-[3] overflow-hidden min-w-0">
 
-          {/* Opening name */}
-          {opening && (
-            <div className="px-4 py-2 border-b border-white/5 shrink-0">
-              <p className="text-xs text-white/50 truncate">
-                <span className="text-white/25 font-mono mr-1.5">{opening.eco}</span>
-                {opening.name}
-              </p>
-            </div>
-          )}
-
           {/* Engine lines (build mode only) */}
           {mode === 'build' && (
             <div className="px-3 pt-3 pb-2 border-b border-white/5 shrink-0">
@@ -642,6 +632,16 @@ export function RepertoirePanel({ onBack }: Props) {
                 isWhiteToMove={chess.turn() === 'w'}
                 depth={deepDepth ?? undefined}
               />
+            </div>
+          )}
+
+          {/* Opening name */}
+          {opening && (
+            <div className="px-4 py-2 border-b border-white/5 shrink-0">
+              <p className="text-xs text-white/50 truncate">
+                <span className="text-white/25 font-mono mr-1.5">{opening.eco}</span>
+                {opening.name}
+              </p>
             </div>
           )}
 
