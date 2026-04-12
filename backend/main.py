@@ -9,9 +9,12 @@ from routers.repertoire import router as repertoire_router
 
 app = FastAPI(title="Mercury Chess API")
 
+import os
+_cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

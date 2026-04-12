@@ -24,6 +24,22 @@ A Chess.com-style game review and analysis tool built with a FastAPI backend and
 
 ---
 
+## Run App
+
+**Backend**
+```bash
+cd backend
+source .venv/bin/activate && uvicorn main:app --reload --env-file .env
+```
+
+**Frontend**
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
 ## Features
 
 - **Full game review** — paste any PGN and get a complete move-by-move analysis

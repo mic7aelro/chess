@@ -10,7 +10,7 @@ from typing import Any
 
 import requests as _requests
 
-STOCKFISH_PATH  = "/opt/homebrew/bin/stockfish"
+STOCKFISH_PATH  = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 ANALYSIS_DEPTH   = 18                             # depth for batch game analysis
 ANALYSIS_LIMIT   = chess.engine.Limit(depth=ANALYSIS_DEPTH)             # depth-only — deterministic scores
 SURPRISE_DEPTH   = chess.engine.Limit(depth=5)                          # shallow pass — deterministic, stays non-obvious
@@ -18,7 +18,7 @@ SURPRISE_DEPTH   = chess.engine.Limit(depth=5)                          # shallo
 # Tune these for your hardware:
 #   Threads — number of CPU threads Stockfish uses (leave 2 cores for OS)
 #   Hash    — transposition table size in MB (more = fewer re-lookups)
-ENGINE_THREADS = 4    # M2 Air: 4–6 | M4/M5 Pro: 8–10
+ENGINE_THREADS = int(os.environ.get("ENGINE_THREADS", "2"))  # Railway: 2 | M2 Air: 4–6
 ENGINE_HASH_MB = 256
 
 # ---------------------------------------------------------------------------
