@@ -25,6 +25,11 @@ app.include_router(repertoire_router)
 async def create_indexes():
     from db import get_db
     db = get_db()
+    # Drop legacy unique index on (fen, color) that prevented multiple moves per position
+    try:
+        await db["repertoire"].drop_index("fen_1_color_1")
+    except Exception:
+        pass
     await db["repertoire"].create_index(
         [("fen", 1), ("move", 1), ("color", 1)], unique=True
     )

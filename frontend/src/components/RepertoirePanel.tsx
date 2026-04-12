@@ -49,7 +49,6 @@ const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 function buildTree(
   fen: string,
   movesMap: Map<string, RepertoireMove[]>,
-  playerColor: 'white' | 'black',
   depth = 0,
 ): TreeNode[] {
   if (depth > 30) return [];
@@ -73,7 +72,7 @@ function buildTree(
         moveUci: mv.move,
         isPlayer: mv.isPlayerMove,
         moveNum: copy.moveNumber(),
-        children: buildTree(newFen, movesMap, playerColor, depth + 1),
+        children: buildTree(newFen, movesMap, depth + 1),
       });
     } catch { continue; }
   }
@@ -82,80 +81,124 @@ function buildTree(
 }
 
 // ---------------------------------------------------------------------------
-// Tree renderer
+// Tree renderer — inline chains, branches indented
 // ---------------------------------------------------------------------------
+
+/** Returns the move-number prefix to show before a move in the inline chain. */
+function getMovePrefix(fenBefore: string, moveNum: number, i: number): string | null {
+  const isWhite = fenBefore.split(' ')[1] === 'w';
+  if (i === 0) return isWhite ? `${moveNum}.` : `${moveNum - 1}…`;
+  if (isWhite) return `${moveNum}.`; // white always shows number (follows black's move)
+  return null; // black after white: number implied inline
+}
+
+function LineView({
+  startNode,
+  playerColor,
+  onNavigate,
+  activeFen,
+  onDelete,
+  isSubLine = false,
+}: {
+  startNode: TreeNode;
+  playerColor: 'white' | 'black';
+  onNavigate: (fen: string) => void;
+  activeFen: string;
+  onDelete: (fenBefore: string, moveUci: string) => void;
+  isSubLine?: boolean;
+}) {
+  // Collect the linear chain: keep going while there's exactly one child.
+  const chain: TreeNode[] = [];
+  let cur: TreeNode | null = startNode;
+  while (cur) {
+    chain.push(cur);
+    cur = cur.children.length === 1 ? cur.children[0] : null;
+  }
+  const branches = chain[chain.length - 1].children; // 0 (leaf) or 2+ (branch point)
+
+  return (
+    <div className={isSubLine ? 'ml-3 border-l border-white/10 pl-2 mt-0.5' : 'mt-0.5'}>
+      {/* Inline move sequence */}
+      <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 py-0.5">
+        {isSubLine && <span className="text-white/20 text-xs mr-0.5 shrink-0">↳</span>}
+        {chain.map((node, i) => {
+          const prefix = getMovePrefix(node.fenBefore, node.moveNum, i);
+          const isActive = normFen(node.fen) === normFen(activeFen);
+          return (
+            <span key={i} className="flex items-center gap-0.5">
+              {prefix && (
+                <span className="text-white/30 text-xs font-mono shrink-0">{prefix}</span>
+              )}
+              <span className="relative group/move inline-flex">
+                <button
+                  onClick={() => onNavigate(node.fen)}
+                  className={`text-sm font-mono px-1 py-0.5 rounded transition-colors ${
+                    node.isPlayer
+                      ? isActive
+                        ? 'text-white font-bold bg-white/15'
+                        : 'text-white font-semibold hover:bg-white/10'
+                      : isActive
+                        ? 'text-white/70 bg-white/10'
+                        : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                  }`}
+                >
+                  {node.san}
+                </button>
+                {node.isPlayer && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(node.fenBefore, node.moveUci); }}
+                    className="absolute -top-1 -right-1 opacity-0 group-hover/move:opacity-100 text-white/20 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 size={9} />
+                  </button>
+                )}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+      {/* Branch alternatives */}
+      {branches.map((child, i) => (
+        <LineView
+          key={i}
+          startNode={child}
+          playerColor={playerColor}
+          onNavigate={onNavigate}
+          activeFen={activeFen}
+          onDelete={onDelete}
+          isSubLine
+        />
+      ))}
+    </div>
+  );
+}
+
 function TreeView({
   nodes,
-  depth = 0,
   onNavigate,
   activeFen,
   onDelete,
   playerColor,
 }: {
   nodes: TreeNode[];
-  depth?: number;
   onNavigate: (fen: string) => void;
   activeFen: string;
   onDelete: (fenBefore: string, moveUci: string) => void;
   playerColor: 'white' | 'black';
 }) {
   if (nodes.length === 0) return null;
-
   return (
-    <div className={depth > 0 ? 'ml-3 border-l border-white/10 pl-2' : ''}>
-      {nodes.map((node, i) => {
-        const isActive = normFen(node.fen) === normFen(activeFen);
-        const movePrefix = node.isPlayer
-          ? (playerColor === 'white'
-              ? `${node.moveNum}.`
-              : `${node.moveNum - 1}…`)
-          : null;
-
-        return (
-          <div key={i} className="mt-0.5">
-            <div className="flex items-center gap-1 group">
-              {/* Connector symbol for opponent branches */}
-              {!node.isPlayer && depth > 0 && (
-                <span className="text-white/20 text-xs shrink-0">↳</span>
-              )}
-              {movePrefix && (
-                <span className="text-white/30 text-xs font-mono shrink-0">{movePrefix}</span>
-              )}
-              <button
-                onClick={() => onNavigate(node.fen)}
-                className={`text-sm font-mono px-1 py-0.5 rounded transition-colors ${
-                  node.isPlayer
-                    ? isActive
-                      ? 'text-white font-bold bg-white/15'
-                      : 'text-white font-semibold hover:bg-white/10'
-                    : isActive
-                      ? 'text-white/70 bg-white/10'
-                      : 'text-white/50 hover:text-white/80 hover:bg-white/5'
-                }`}
-              >
-                {node.san}
-              </button>
-              {/* Delete button — only on player moves */}
-              {node.isPlayer && (
-                <button
-                  onClick={() => onDelete(node.fenBefore, node.moveUci)}
-                  className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all ml-auto shrink-0"
-                >
-                  <Trash2 size={11} />
-                </button>
-              )}
-            </div>
-            <TreeView
-              nodes={node.children}
-              depth={depth + 1}
-              onNavigate={onNavigate}
-              activeFen={activeFen}
-              onDelete={onDelete}
-              playerColor={playerColor}
-            />
-          </div>
-        );
-      })}
+    <div>
+      {nodes.map((node, i) => (
+        <LineView
+          key={i}
+          startNode={node}
+          playerColor={playerColor}
+          onNavigate={onNavigate}
+          activeFen={activeFen}
+          onDelete={onDelete}
+        />
+      ))}
     </div>
   );
 }
@@ -215,8 +258,8 @@ export function RepertoirePanel({ onBack }: Props) {
   }, [moves]);
 
   const tree = useMemo(
-    () => buildTree(STARTING_FEN, movesMap, color),
-    [movesMap, color],
+    () => buildTree(STARTING_FEN, movesMap),
+    [movesMap],
   );
 
   const prepAtCurrent = prepMap.get(normFen(fen)) ?? null;
