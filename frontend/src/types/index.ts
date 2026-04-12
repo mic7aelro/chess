@@ -37,6 +37,16 @@ export interface PlayerStats {
   elo: number;
 }
 
+export interface RepertoireMove {
+  id: string;
+  fen: string;
+  move: string;   // UCI
+  san: string;
+  color: 'white' | 'black';
+  notes: string;
+  addedAt: number;
+}
+
 export interface AnalysisResult {
   headers: Record<string, string>;
   starting_fen: string;

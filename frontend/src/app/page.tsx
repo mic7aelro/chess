@@ -4,7 +4,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
-import { BookOpen, Check, Library, SkipBack, SkipForward, ChevronLeft, ChevronRight, Swords } from 'lucide-react';
+import { BookOpen, Check, Library, SkipBack, SkipForward, ChevronLeft, ChevronRight, Swords, ScrollText } from 'lucide-react';
 
 function SolidThumbsUp({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
   return (
@@ -19,7 +19,9 @@ import { AccuracyCards } from '@/components/AccuracyCards';
 import { BoardPanel } from '@/components/BoardPanel';
 import { EngineLines } from '@/components/EngineLines';
 import { LibraryPanel } from '@/components/LibraryPanel';
-import { getFolders, saveReview, createFolder } from '@/lib/library';
+import { RepertoirePanel } from '@/components/RepertoirePanel';
+import { getFolders, saveReview, createFolder, getRepertoire } from '@/lib/library';
+import type { RepertoireMove } from '@/types';
 import type { AnalysisResult, Classification, TopLine } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -101,7 +103,7 @@ interface ExploreFrame {
 // ---------------------------------------------------------------------------
 // Right-panel states
 // ---------------------------------------------------------------------------
-type PanelState = 'menu' | 'paste' | 'analysis' | 'freeplay' | 'play';
+type PanelState = 'menu' | 'paste' | 'analysis' | 'freeplay' | 'play' | 'repertoire';
 
 export default function Home() {
   const [result, setResult]           = useState<AnalysisResult | null>(null);
@@ -122,6 +124,27 @@ export default function Home() {
   const [isQuickLoaded, setIsQuickLoaded]   = useState(false);
   const [playThinking, setPlayThinking]     = useState(false);
   const [showEvalBar, setShowEvalBar]       = useState(true);
+
+  // Repertoire — loaded when an analysis result is present
+  const [repertoireWhite, setRepertoireWhite] = useState<RepertoireMove[]>([]);
+  const [repertoireBlack, setRepertoireBlack] = useState<RepertoireMove[]>([]);
+
+  useEffect(() => {
+    if (!result) return;
+    getRepertoire('white').then(setRepertoireWhite).catch(() => {});
+    getRepertoire('black').then(setRepertoireBlack).catch(() => {});
+  }, [result]);
+
+  // Build fen→prepSan map for deviation detection in MoveList
+  const repertoirePrep = (() => {
+    if (!result) return undefined;
+    const map = new Map<string, string>();
+    const normFen = (f: string) => f.split(' ').slice(0, 4).join(' ');
+    [...repertoireWhite, ...repertoireBlack].forEach(m => {
+      map.set(normFen(m.fen), m.san);
+    });
+    return map.size > 0 ? map : undefined;
+  })();
 
   // Library
   const [libraryOpen, setLibraryOpen]   = useState(false);
@@ -647,8 +670,8 @@ export default function Home() {
       });
       setIsQuickLoaded(true);
       setSelectedPly(null);
-      setExploreFrame(null);
-      setExploreStack([]);
+      setExploreHistory([]);
+      setExploreIdx(-1);
       setPanelState('analysis');
     } catch {
       setError('Could not parse PGN.');
@@ -799,6 +822,12 @@ export default function Home() {
             label="Library"
             active={libraryOpen}
             onClick={() => { setLibraryOpen((o) => !o); setPanelState('menu'); }}
+          />
+          <SidebarTab
+            icon={<ScrollText size={18} />}
+            label="Repertoire"
+            active={panelState === 'repertoire'}
+            onClick={() => { setLibraryOpen(false); setPanelState('repertoire'); }}
           />
         </div>
       </div>
@@ -974,7 +1003,13 @@ export default function Home() {
       )}
 
       {/* ── Right column: 25% — 3-state panel ── */}
-      {panelState !== 'play' && <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
+      {panelState === 'repertoire' && (
+        <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
+          <RepertoirePanel onBack={() => setPanelState('menu')} />
+        </div>
+      )}
+
+      {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
 
         {/* ── Nav bar — shown in analysis mode above engine lines ── */}
         {panelState === 'analysis' && result && (
@@ -1187,6 +1222,7 @@ export default function Home() {
                   activeExploreIdx={isExploring ? exploreIdx : undefined}
                   onSelectExploreMove={setExploreIdx}
                   showEval={false}
+                  repertoirePrep={repertoirePrep}
                 />
               </div>
 

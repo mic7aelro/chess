@@ -17,6 +17,8 @@ interface Props {
   activeExploreIdx?: number;
   onSelectExploreMove?: (idx: number) => void;
   showEval?: boolean;
+  /** Map of normalised FEN → prep SAN for deviation detection */
+  repertoirePrep?: Map<string, string>;
 }
 
 function formatEval(cp: number): string {
@@ -46,10 +48,22 @@ const CLASSIFICATION_STYLE: Record<Classification, { symbol: string; className: 
   blunder:    { symbol: '??', className: 'text-[#ca3431]' },
 };
 
-export function MoveList({ result, selectedPly, onSelectPly, exploreMoves, branchPly, activeExploreIdx, onSelectExploreMove, showEval = true }: Props) {
+function normFen(fen: string) {
+  return fen.split(' ').slice(0, 4).join(' ');
+}
+
+export function MoveList({ result, selectedPly, onSelectPly, exploreMoves, branchPly, activeExploreIdx, onSelectExploreMove, showEval = true, repertoirePrep }: Props) {
   const { moves } = result;
   const hasBranch = !!exploreMoves?.length;
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Map ply → FEN before that move (used for repertoire deviation lookup)
+  const fenBeforeByPly = new Map<number, string>();
+  if (repertoirePrep) {
+    moves.forEach((m, i) => {
+      fenBeforeByPly.set(m.ply, normFen(i === 0 ? result.starting_fen : moves[i - 1].fen));
+    });
+  }
 
   useEffect(() => {
     containerRef.current
@@ -82,9 +96,9 @@ export function MoveList({ result, selectedPly, onSelectPly, exploreMoves, branc
           <div key={moveNum}>
             <div className="grid grid-cols-[2rem_1fr_1fr] gap-x-3 px-4 py-1 text-sm items-center">
               <span className="text-zinc-600 text-xs">{moveNum}</span>
-              <MoveColumn move={white} selected={selectedPly === white.ply} onSelect={onSelectPly} showEval={showEval} />
+              <MoveColumn move={white} selected={selectedPly === white.ply} onSelect={onSelectPly} showEval={showEval} prepSan={repertoirePrep && fenBeforeByPly.has(white.ply) ? repertoirePrep.get(fenBeforeByPly.get(white.ply)!) : undefined} />
               {black
-                ? <MoveColumn move={black} selected={selectedPly === black.ply} onSelect={onSelectPly} showEval={showEval} />
+                ? <MoveColumn move={black} selected={selectedPly === black.ply} onSelect={onSelectPly} showEval={showEval} prepSan={repertoirePrep && fenBeforeByPly.has(black.ply) ? repertoirePrep.get(fenBeforeByPly.get(black.ply)!) : undefined} />
                 : <span />}
             </div>
 
@@ -103,10 +117,12 @@ export function MoveList({ result, selectedPly, onSelectPly, exploreMoves, branc
 const SHOW_SYMBOL = new Set<Classification>(['book', 'brilliant', 'great', 'blunder']);
 
 function MoveColumn({
-  move, selected, onSelect, showEval,
-}: { move: MoveEval; selected: boolean; onSelect: (ply: number | null) => void; showEval: boolean }) {
+  move, selected, onSelect, showEval, prepSan,
+}: { move: MoveEval; selected: boolean; onSelect: (ply: number | null) => void; showEval: boolean; prepSan?: string }) {
   const cls = move.classification ? CLASSIFICATION_STYLE[move.classification] : null;
   const showSymbol = move.classification && SHOW_SYMBOL.has(move.classification) && cls?.symbol;
+  // Out of prep: position was in repertoire but played move differs
+  const outOfPrep = prepSan != null && !move.is_book && move.san !== prepSan;
   return (
     <button
       data-active={selected ? 'true' : 'false'}
@@ -119,6 +135,11 @@ function MoveColumn({
         <span className="font-mono">{move.san}</span>
         {showSymbol && (
           <span className={`text-xs font-bold shrink-0 ${cls?.className}`}>{cls?.symbol}</span>
+        )}
+        {outOfPrep && (
+          <span className="text-[10px] font-semibold text-amber-400/80 shrink-0" title={`Prep: ${prepSan}`}>
+            ↩{prepSan}
+          </span>
         )}
       </div>
       {showEval && (
