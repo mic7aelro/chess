@@ -378,11 +378,14 @@ def _is_brilliant(board: chess.Board, move: chess.Move, surprise: bool, score_be
         return False, False
 
     # Path 2 — surprising quiet queen move (rooks require an actual sacrifice)
+    # wp_before < 0.90: position is not yet trivially won (the "clearly won" guard
+    # at 0.95 in _classify provides a second firewall, so we give this path more
+    # room to catch deep positional queen moves in slightly-winning positions).
     wp_before = _cp_to_win_prob(score_before)
     if (moving_value >= 900
             and not captured_piece
             and not piece_hanging
-            and wp_before < 0.80):
+            and wp_before < 0.90):
         return True, False
 
     return False, False
