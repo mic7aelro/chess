@@ -846,8 +846,15 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ── Repertoire: full-width panel, replaces board + right panel ── */}
+      {panelState === 'repertoire' && (
+        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+          <RepertoirePanel onBack={() => setPanelState('menu')} />
+        </div>
+      )}
+
       {/* ── Left column: board ── */}
-      <div className={`sticky top-0 h-screen flex-1 shrink-0 flex flex-col relative ${panelState !== 'play' ? 'border-r border-zinc-800' : ''}`}>
+      <div className={`sticky top-0 h-screen flex-1 shrink-0 flex flex-col relative ${panelState !== 'play' ? 'border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
 
         {/* Board: centred in available space */}
         <div className="flex-1 flex items-center justify-center">
@@ -1003,12 +1010,6 @@ export default function Home() {
       )}
 
       {/* ── Right column: 25% — 3-state panel ── */}
-      {panelState === 'repertoire' && (
-        <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
-          <RepertoirePanel onBack={() => setPanelState('menu')} />
-        </div>
-      )}
-
       {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
 
         {/* ── Nav bar — shown in analysis mode above engine lines ── */}

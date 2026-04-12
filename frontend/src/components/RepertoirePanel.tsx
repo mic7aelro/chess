@@ -261,9 +261,9 @@ export function RepertoirePanel({ onBack }: Props) {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Board side */}
-        <div className="flex flex-col items-center gap-3 p-4 w-[340px] shrink-0">
-          <div className="w-full aspect-square">
+        {/* Board side — takes up ~60% of the width, square board centred */}
+        <div className="flex flex-col items-center justify-center gap-3 p-6 flex-[3] shrink-0 border-r border-white/10">
+          <div className="w-full max-w-[560px] aspect-square">
             <Chessboard
               options={{
                 position: fen,
@@ -332,7 +332,7 @@ export function RepertoirePanel({ onBack }: Props) {
         </div>
 
         {/* Right side: line list + import */}
-        <div className="flex flex-col flex-1 overflow-hidden border-l border-white/10">
+        <div className="flex flex-col flex-[2] overflow-hidden min-w-[260px] max-w-sm">
           {/* Prep move for current position */}
           {prepMove && mode === 'build' && (
             <div className="flex items-center justify-between px-4 py-2 bg-[#5c8fff]/10 border-b border-[#5c8fff]/20">
