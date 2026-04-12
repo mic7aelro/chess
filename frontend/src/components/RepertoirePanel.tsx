@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Chess } from 'chess.js';
-import { Trash2, Download, Dumbbell, BookOpen } from 'lucide-react';
+import { Trash2, Download, Dumbbell, BookOpen, Settings } from 'lucide-react';
 import {
   getRepertoire,
   addRepertoireMove,
@@ -101,6 +101,7 @@ function LineView({
   onNavigate,
   activeFen,
   onDelete,
+  openingCache,
   isSubLine = false,
 }: {
   startNode: TreeNode;
@@ -108,6 +109,7 @@ function LineView({
   onNavigate: (fen: string) => void;
   activeFen: string;
   onDelete: (fenBefore: string, moveUci: string) => void;
+  openingCache: Map<string, string>;
   isSubLine?: boolean;
 }) {
   // Collect the linear chain: keep going while there's exactly one child.
@@ -117,7 +119,9 @@ function LineView({
     chain.push(cur);
     cur = cur.children.length === 1 ? cur.children[0] : null;
   }
-  const branches = chain[chain.length - 1].children; // 0 (leaf) or 2+ (branch point)
+  const lastNode = chain[chain.length - 1];
+  const branches = lastNode.children; // 0 (leaf) or 2+ (branch point)
+  const lineName = openingCache.get(normFen(lastNode.fen));
 
   return (
     <div className={isSubLine ? 'ml-3 border-l border-white/10 pl-2 mt-0.5' : 'mt-0.5'}>
@@ -159,6 +163,12 @@ function LineView({
             </span>
           );
         })}
+        {/* Opening name at end of chain */}
+        {lineName && (
+          <span className="text-[10px] text-white/25 font-sans ml-1 shrink-0 italic truncate max-w-[120px]" title={lineName}>
+            {lineName}
+          </span>
+        )}
       </div>
       {/* Branch alternatives */}
       {branches.map((child, i) => (
@@ -169,6 +179,7 @@ function LineView({
           onNavigate={onNavigate}
           activeFen={activeFen}
           onDelete={onDelete}
+          openingCache={openingCache}
           isSubLine
         />
       ))}
@@ -182,12 +193,14 @@ function TreeView({
   activeFen,
   onDelete,
   playerColor,
+  openingCache,
 }: {
   nodes: TreeNode[];
   onNavigate: (fen: string) => void;
   activeFen: string;
   onDelete: (fenBefore: string, moveUci: string) => void;
   playerColor: 'white' | 'black';
+  openingCache: Map<string, string>;
 }) {
   if (nodes.length === 0) return null;
   return (
@@ -200,6 +213,7 @@ function TreeView({
           onNavigate={onNavigate}
           activeFen={activeFen}
           onDelete={onDelete}
+          openingCache={openingCache}
         />
       ))}
     </div>
@@ -228,8 +242,15 @@ export function RepertoirePanel({ onBack }: Props) {
   // Engine + opening state
   const [deepLines, setDeepLines] = useState<TopLine[]>([]);
   const [deepDepth, setDeepDepth] = useState<number | null>(null);
+  const [lineCount, setLineCount] = useState<1 | 3>(1);
   const [opening, setOpening]     = useState<{ name: string; eco: string } | null>(null);
-  const fenRef = useRef<string>('');
+  const [openingCache, setOpeningCache] = useState<Map<string, string>>(new Map());
+  const fenRef         = useRef<string>('');
+  const movesMapRef    = useRef<Map<string, RepertoireMove[]>>(new Map());
+  const fetchedFensRef = useRef(new Set<string>());
+
+  // Fenhistory for arrow-key navigation
+  const [fenHistory, setFenHistory] = useState<string[]>([STARTING_FEN]);
 
   // ---------------------------------------------------------------------------
   // Load repertoire
@@ -271,7 +292,7 @@ export function RepertoirePanel({ onBack }: Props) {
     return () => { cancelled = true; };
   }, [fen, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Opening detection
+  // Opening detection (current board position)
   useEffect(() => {
     if (fen === STARTING_FEN) { setOpening(null); return; }
     let cancelled = false;
@@ -285,6 +306,49 @@ export function RepertoirePanel({ onBack }: Props) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [fen]);
+
+  // Arrow-key navigation
+  const goBack = useCallback(() => {
+    setFenHistory(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.slice(0, -1);
+      const prevFen = next[next.length - 1];
+      setChess(new Chess(prevFen));
+      setFen(prevFen);
+      setDrillResult(null);
+      setHistory(h => h.slice(0, -1));
+      return next;
+    });
+  }, []);
+
+  const goForward = useCallback(() => {
+    const nextMoves = movesMapRef.current.get(normFen(fenRef.current)) ?? [];
+    if (nextMoves.length === 0) return;
+    const mv = nextMoves[0];
+    const from = mv.move.slice(0, 2);
+    const to   = mv.move.slice(2, 4);
+    const promo = mv.move.length > 4 ? mv.move[4] : undefined;
+    try {
+      const c = new Chess(fenRef.current);
+      const moved = c.move({ from, to, ...(promo ? { promotion: promo } : {}) });
+      if (!moved) return;
+      const newFen = c.fen();
+      setFenHistory(prev => [...prev, newFen]);
+      setHistory(prev => [...prev, moved.san]);
+      setChess(new Chess(newFen));
+      setFen(newFen);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'build') return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); goBack(); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goForward(); }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mode, goBack, goForward]);
 
   // ---------------------------------------------------------------------------
   // Moves map & prep map (memoised)
@@ -308,12 +372,36 @@ export function RepertoirePanel({ onBack }: Props) {
     return m;
   }, [moves]);
 
+  movesMapRef.current = movesMap;
+
   const tree = useMemo(
     () => buildTree(STARTING_FEN, movesMap),
     [movesMap],
   );
 
   const prepAtCurrent = prepMap.get(normFen(fen)) ?? null;
+
+  // Pre-fetch opening names for every position in the tree
+  useEffect(() => {
+    const fens = new Set<string>();
+    function collect(nodes: TreeNode[]) {
+      nodes.forEach(n => { fens.add(n.fen); collect(n.children); });
+    }
+    collect(tree);
+    fens.forEach(f => {
+      const key = normFen(f);
+      if (fetchedFensRef.current.has(key)) return;
+      fetchedFensRef.current.add(key);
+      fetch(`${API}/api/analysis/opening`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fen: f }),
+      })
+        .then(r => r.json())
+        .then(d => { if (d?.name) setOpeningCache(p => new Map(p).set(key, `${d.eco ?? ''} ${d.name}`.trim())); })
+        .catch(() => {});
+    });
+  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Board reset
@@ -322,6 +410,7 @@ export function RepertoirePanel({ onBack }: Props) {
     setChess(new Chess());
     setFen(STARTING_FEN);
     setHistory([]);
+    setFenHistory([STARTING_FEN]);
     setDrillResult(null);
     setDrillExpected(null);
     setDrillPreFen(null);
@@ -330,6 +419,8 @@ export function RepertoirePanel({ onBack }: Props) {
   function navigateTo(targetFen: string) {
     setChess(new Chess(targetFen));
     setFen(targetFen);
+    setFenHistory([targetFen]);
+    setHistory([]);
     setDrillResult(null);
   }
 
@@ -363,6 +454,7 @@ export function RepertoirePanel({ onBack }: Props) {
       });
     } catch (e) { console.error('Failed to save move', e); }
 
+    setFenHistory(prev => [...prev, newFen]);
     setHistory(prev => [...prev, moved.san]);
     setChess(new Chess(newFen));
     setFen(newFen);
@@ -626,12 +718,24 @@ export function RepertoirePanel({ onBack }: Props) {
 
           {/* Engine lines (build mode only) */}
           {mode === 'build' && (
-            <div className="px-3 pt-3 pb-2 border-b border-white/5 shrink-0">
-              <EngineLines
-                lines={deepLines}
-                isWhiteToMove={chess.turn() === 'w'}
-                depth={deepDepth ?? undefined}
-              />
+            <div className="border-b border-white/5 shrink-0">
+              <div className="flex items-center justify-end px-3 pt-2">
+                <button
+                  onClick={() => setLineCount(n => n === 1 ? 3 : 1)}
+                  title={lineCount === 1 ? 'Show 3 lines' : 'Show 1 line'}
+                  className="text-white/20 hover:text-white/60 transition-colors flex items-center gap-1 text-[10px]"
+                >
+                  <Settings size={11} />
+                  <span className="font-mono">{lineCount}</span>
+                </button>
+              </div>
+              <div className="px-3 pb-2">
+                <EngineLines
+                  lines={deepLines.slice(0, lineCount)}
+                  isWhiteToMove={chess.turn() === 'w'}
+                  depth={deepDepth ?? undefined}
+                />
+              </div>
             </div>
           )}
 
@@ -665,6 +769,7 @@ export function RepertoirePanel({ onBack }: Props) {
                 activeFen={fen}
                 onDelete={handleDelete}
                 playerColor={color}
+                openingCache={openingCache}
               />
             )}
           </div>

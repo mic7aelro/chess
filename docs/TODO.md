@@ -9,6 +9,9 @@
 
 ## Backlog — App Polish
 
+- [x] Repertoire: settings icon to toggle 1 vs 3 engine lines shown
+- [x] Allow arrows to be used in repertoire page for navigation
+- [x] Add line names somewhere in the repertoire move line
 - [ ] Make miss badge larger and bolder on the board square
 - [ ] Analysis modal: never cut off/scrollable — full graph always visible, moves box below
 - [ ] Alternate line: left/right arrow navigation should not wipe the line
