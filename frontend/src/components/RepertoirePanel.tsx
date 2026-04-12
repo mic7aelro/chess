@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { Trash2, Download, Dumbbell, BookOpen } from 'lucide-react';
 import {
@@ -11,7 +11,10 @@ import {
   importFromGames,
   type ImportCandidate,
 } from '@/lib/library';
-import type { RepertoireMove } from '@/types';
+import type { RepertoireMove, TopLine } from '@/types';
+import { EngineLines } from '@/components/EngineLines';
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 const Chessboard = dynamic(
   () => import('react-chessboard').then((m) => m.Chessboard),
@@ -219,8 +222,14 @@ export function RepertoirePanel({ onBack }: Props) {
   // Drill state
   const [drillResult, setDrillResult]         = useState<'correct' | 'wrong' | null>(null);
   const [drillScore, setDrillScore]           = useState({ correct: 0, total: 0 });
-  const [drillExpected, setDrillExpected]     = useState<string | null>(null); // san of correct prep
-  const [drillPreFen, setDrillPreFen]         = useState<string | null>(null); // fen to revert to on wrong
+  const [drillExpected, setDrillExpected]     = useState<string | null>(null);
+  const [drillPreFen, setDrillPreFen]         = useState<string | null>(null);
+
+  // Engine + opening state
+  const [deepLines, setDeepLines] = useState<TopLine[]>([]);
+  const [deepDepth, setDeepDepth] = useState<number | null>(null);
+  const [opening, setOpening]     = useState<{ name: string; eco: string } | null>(null);
+  const fenRef = useRef<string>('');
 
   // ---------------------------------------------------------------------------
   // Load repertoire
@@ -234,6 +243,48 @@ export function RepertoirePanel({ onBack }: Props) {
     loadRepertoire();
     resetBoard();
   }, [color]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Progressive deepening — runs in build mode whenever the board position changes
+  useEffect(() => {
+    if (mode !== 'build') return;
+    fenRef.current = fen;
+    setDeepLines([]);
+    setDeepDepth(null);
+    let cancelled = false;
+    (async () => {
+      for (const depth of [8, 10, 12, 14, 16, 18]) {
+        if (cancelled || fenRef.current !== fen) break;
+        try {
+          const res = await fetch(`${API}/api/analysis/eval`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fen, depth }),
+          });
+          if (cancelled || fenRef.current !== fen) break;
+          const data: { eval: number; top_lines: TopLine[]; depth: number } = await res.json();
+          if (cancelled || fenRef.current !== fen) break;
+          setDeepLines(data.top_lines);
+          setDeepDepth(data.depth);
+        } catch { break; }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [fen, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opening detection
+  useEffect(() => {
+    if (fen === STARTING_FEN) { setOpening(null); return; }
+    let cancelled = false;
+    fetch(`${API}/api/analysis/opening`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fen }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d?.name) setOpening({ name: d.name, eco: d.eco ?? '' }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [fen]);
 
   // ---------------------------------------------------------------------------
   // Moves map & prep map (memoised)
@@ -483,8 +534,8 @@ export function RepertoirePanel({ onBack }: Props) {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Board column */}
-        <div className="flex flex-col items-center justify-center gap-3 p-5 flex-[5] border-r border-white/10">
-          <div className="w-full max-w-[520px] aspect-square">
+        <div className="flex flex-col items-center justify-center gap-3 p-6 flex-[6] border-r border-white/10">
+          <div className="w-full max-w-[620px] aspect-square">
             <Chessboard
               options={{
                 position: fen,
@@ -507,7 +558,7 @@ export function RepertoirePanel({ onBack }: Props) {
 
           {/* Feedback */}
           {mode === 'drill' && drillResult && (
-            <div className={`w-full max-w-[520px] text-center text-sm font-semibold py-2 rounded ${
+            <div className={`w-full max-w-[620px] text-center text-sm font-semibold py-2.5 rounded ${
               drillResult === 'correct'
                 ? 'bg-green-600/20 text-green-400'
                 : 'bg-red-600/20 text-red-400'
@@ -522,14 +573,14 @@ export function RepertoirePanel({ onBack }: Props) {
 
           {/* Build mode: show prep at current position */}
           {mode === 'build' && prepAtCurrent && (
-            <div className="w-full max-w-[520px] text-center text-xs text-[#5c8fff]/80 bg-[#5c8fff]/10 rounded py-1.5">
+            <div className="w-full max-w-[620px] text-center text-xs text-[#5c8fff]/80 bg-[#5c8fff]/10 rounded py-1.5">
               Prep here: <span className="font-bold text-[#5c8fff]">{prepAtCurrent.san}</span>
             </div>
           )}
 
           {/* Move history */}
           {history.length > 0 && (
-            <p className="text-xs text-white/30 text-center max-w-[520px] leading-relaxed">
+            <p className="text-xs text-white/30 text-center max-w-[620px] leading-relaxed">
               {history.map((san, i) => {
                 const isWhiteMove = i % 2 === 0;
                 const moveNum = Math.floor(i / 2) + 1;
@@ -539,10 +590,10 @@ export function RepertoirePanel({ onBack }: Props) {
           )}
 
           {/* Controls */}
-          <div className="flex gap-2 w-full max-w-[520px]">
+          <div className="flex gap-2 w-full max-w-[620px]">
             <button
               onClick={resetBoard}
-              className="flex-1 py-1.5 rounded bg-white/8 hover:bg-white/15 text-xs text-white/60 transition-colors"
+              className="flex-1 py-2.5 rounded bg-white/8 hover:bg-white/15 text-sm text-white/60 transition-colors"
             >
               Reset
             </button>
@@ -550,19 +601,19 @@ export function RepertoirePanel({ onBack }: Props) {
               <button
                 onClick={startDrill}
                 disabled={moves.length === 0}
-                className="flex-1 py-1.5 rounded bg-[#5c8fff]/80 hover:bg-[#5c8fff] text-xs font-semibold text-white transition-colors flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 rounded bg-[#5c8fff]/80 hover:bg-[#5c8fff] text-sm font-semibold text-white transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Dumbbell size={12} /> Drill
+                <Dumbbell size={14} /> Drill
               </button>
             ) : (
               <>
                 <button
                   onClick={() => { setMode('build'); resetBoard(); }}
-                  className="flex-1 py-1.5 rounded bg-white/8 hover:bg-white/15 text-xs text-white/60 transition-colors flex items-center justify-center gap-1"
+                  className="flex-1 py-2.5 rounded bg-white/8 hover:bg-white/15 text-sm text-white/60 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <BookOpen size={12} /> Build
+                  <BookOpen size={14} /> Build
                 </button>
-                <span className="flex items-center text-xs text-white/40 shrink-0">
+                <span className="flex items-center text-sm text-white/40 shrink-0 font-mono">
                   {drillScore.correct}/{drillScore.total}
                 </span>
               </>
@@ -570,8 +621,29 @@ export function RepertoirePanel({ onBack }: Props) {
           </div>
         </div>
 
-        {/* Tree column */}
+        {/* Right column: engine + opening + tree */}
         <div className="flex flex-col flex-[3] overflow-hidden min-w-0">
+
+          {/* Opening name */}
+          {opening && (
+            <div className="px-4 py-2 border-b border-white/5 shrink-0">
+              <p className="text-xs text-white/50 truncate">
+                <span className="text-white/25 font-mono mr-1.5">{opening.eco}</span>
+                {opening.name}
+              </p>
+            </div>
+          )}
+
+          {/* Engine lines (build mode only) */}
+          {mode === 'build' && (
+            <div className="px-3 pt-3 pb-2 border-b border-white/5 shrink-0">
+              <EngineLines
+                lines={deepLines}
+                isWhiteToMove={chess.turn() === 'w'}
+                depth={deepDepth ?? undefined}
+              />
+            </div>
+          )}
 
           {/* Tree header */}
           <div className="px-4 py-2 border-b border-white/5 shrink-0">
