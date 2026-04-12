@@ -441,6 +441,8 @@ export function RepertoirePanel({ onBack }: Props) {
                 },
                 darkSquareStyle:  { backgroundColor: '#769656' },
                 lightSquareStyle: { backgroundColor: '#eeeed2' },
+                darkSquareNotationStyle:  { color: '#eeeed2' },
+                lightSquareNotationStyle: { color: '#769656' },
                 boardStyle: { borderRadius: '4px' },
                 allowDragging: true,
                 animationDurationInMs: 150,
