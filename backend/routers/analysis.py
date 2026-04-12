@@ -2,10 +2,14 @@ import asyncio
 import json
 import threading
 
+import requests
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from services.engine import analyse_game, eval_position, best_move, get_opening
+
+_tb_session = requests.Session()
+_tb_session.headers["User-Agent"] = "mercury-chess/1.0"
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
@@ -97,3 +101,19 @@ def get_best_move(body: FenRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
+
+
+@router.get("/tablebase")
+def tablebase(fen: str):
+    """Proxy Lichess Syzygy tablebase (covers positions with ≤7 pieces)."""
+    try:
+        resp = _tb_session.get(
+            "https://tablebase.lichess.ovh/standard",
+            params={"fen": fen},
+            timeout=5,
+        )
+        if resp.ok:
+            return resp.json()
+    except Exception:
+        pass
+    return None

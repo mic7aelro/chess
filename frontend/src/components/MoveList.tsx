@@ -36,15 +36,15 @@ function evalColor(cp: number): string {
 }
 
 const CLASSIFICATION_STYLE: Record<Classification, { symbol: string; className: string }> = {
-  book:       { symbol: '⊕',  className: 'text-[#a0784a]' },
-  brilliant:  { symbol: '!!', className: 'text-[#1fada8]' },
-  great:      { symbol: '!',  className: 'text-[#5c8fff]' },
+  book:       { symbol: '○',  className: 'text-[#a0784a]' },
+  brilliant:  { symbol: '⚡', className: 'text-[#1fada8]' },
+  great:      { symbol: '◎',  className: 'text-[#5c8fff]' },
   best:       { symbol: '★',  className: 'text-[#6fbc5b]' },
-  excellent:  { symbol: '✦',  className: 'text-[#6fbc5b]' },
+  excellent:  { symbol: '↑',  className: 'text-[#6fbc5b]' },
   good:       { symbol: '✓',  className: 'text-[#96bc4b]' },
   inaccuracy: { symbol: '?!', className: 'text-[#f4bf00]' },
   mistake:    { symbol: '?',  className: 'text-[#e07b2a]' },
-  miss:       { symbol: '⊘',  className: 'text-[#e05c2a]' },
+  miss:       { symbol: '−',  className: 'text-[#e05c2a]' },
   blunder:    { symbol: '??', className: 'text-[#ca3431]' },
 };
 
@@ -114,7 +114,7 @@ export function MoveList({ result, selectedPly, onSelectPly, exploreMoves, branc
   );
 }
 
-const SHOW_SYMBOL = new Set<Classification>(['book', 'brilliant', 'great', 'blunder']);
+const SHOW_SYMBOL = new Set<Classification>(['book', 'brilliant', 'miss', 'blunder']);
 
 function MoveColumn({
   move, selected, onSelect, showEval, prepSan,

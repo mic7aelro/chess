@@ -4,15 +4,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
-import { BookOpen, Check, Library, SkipBack, SkipForward, ChevronLeft, ChevronRight, Swords, ScrollText } from 'lucide-react';
-
-function SolidThumbsUp({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} xmlns="http://www.w3.org/2000/svg">
-      <path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83V18c0 1.1.9 2 2 2h9c.83 0 1.58-.51 1.83-1.22l3-7.12z"/>
-    </svg>
-  );
-}
+import { BookOpen, Check, Zap, Star, Award, TrendingUp, AlertCircle, AlertTriangle, MinusCircle, XCircle, Library, SkipBack, SkipForward, ChevronLeft, ChevronRight, Swords, ScrollText } from 'lucide-react';
 import { MoveList } from '@/components/MoveList';
 import { EvalGraph } from '@/components/EvalGraph';
 import { AccuracyCards } from '@/components/AccuracyCards';
@@ -20,7 +12,7 @@ import { BoardPanel } from '@/components/BoardPanel';
 import { EngineLines } from '@/components/EngineLines';
 import { LibraryPanel } from '@/components/LibraryPanel';
 import { RepertoirePanel } from '@/components/RepertoirePanel';
-import { getFolders, saveReview, createFolder, getRepertoire } from '@/lib/library';
+import { getFolders, saveReview, createFolder, getRepertoire, updateReviewAnalysis } from '@/lib/library';
 import type { RepertoireMove } from '@/types';
 import type { AnalysisResult, Classification, TopLine } from '@/types';
 
@@ -43,28 +35,29 @@ function classifyMove(scoreBefore: number, scoreAfter: number): Classification {
   return 'blunder';
 }
 
-type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number }>;
+type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>;
 
-// Chess.com-accurate classification colours
+interface TablebaseResult { category: string; dtm: number | null; dtz: number | null }
+
 const CLS_LABEL: Record<Classification, {
-  symbol?: string;
-  Icon?: IconComponent;
+  Icon: IconComponent;
   strokeWidth?: number;
+  nudge?: string;
   label: string;
   textClass: string;
   badgeBg: string;
   badgeText: string;
 }> = {
-  book:       { Icon: BookOpen, label: 'Book',       textClass: 'text-[#a0784a]', badgeBg: '#7c4e28', badgeText: '#f5dfc0', strokeWidth: 1.5 },
-  brilliant:  { symbol: '!!',  label: 'Brilliant',  textClass: 'text-[#1fada8]', badgeBg: '#1fada8', badgeText: '#fff' },
-  great:      { symbol: '!',   label: 'Great',      textClass: 'text-[#5c8fff]', badgeBg: '#5c8fff', badgeText: '#fff' },
-  best:       { symbol: '★',   label: 'Best',       textClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  excellent:  { label: 'Excellent', textClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  good:       { Icon: Check,   label: 'Good',       textClass: 'text-[#96bc4b]', badgeBg: '#96bc4b', badgeText: '#fff' },
-  inaccuracy: { symbol: '?!',  label: 'Inaccuracy', textClass: 'text-[#f4bf00]', badgeBg: '#f4bf00', badgeText: '#fff' },
-  mistake:    { symbol: '?',   label: 'Mistake',    textClass: 'text-[#e07b2a]', badgeBg: '#e07b2a', badgeText: '#fff' },
-  miss:       { symbol: '⊘',   label: 'Miss',       textClass: 'text-[#e05c2a]', badgeBg: '#e05c2a', badgeText: '#fff' },
-  blunder:    { symbol: '??',  label: 'Blunder',    textClass: 'text-[#ca3431]', badgeBg: '#ca3431', badgeText: '#fff' },
+  book:       { Icon: BookOpen,      label: 'Book',       textClass: 'text-[#a0784a]', badgeBg: '#7c4e28', badgeText: '#f5dfc0', strokeWidth: 1.5 },
+  brilliant:  { Icon: Zap,           label: 'Brilliant',  textClass: 'text-[#1fada8]', badgeBg: '#1fada8', badgeText: '#fff' },
+  great:      { Icon: Award,         label: 'Great',      textClass: 'text-[#5c8fff]', badgeBg: '#5c8fff', badgeText: '#fff' },
+  best:       { Icon: Star,          label: 'Best',       textClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
+  excellent:  { Icon: TrendingUp,    label: 'Excellent',  textClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
+  good:       { Icon: Check,         label: 'Good',       textClass: 'text-[#96bc4b]', badgeBg: '#96bc4b', badgeText: '#fff', strokeWidth: 3 },
+  inaccuracy: { Icon: AlertCircle,   label: 'Inaccuracy', textClass: 'text-[#f4bf00]', badgeBg: '#f4bf00', badgeText: '#fff' },
+  mistake:    { Icon: AlertTriangle, label: 'Mistake',    textClass: 'text-[#e07b2a]', badgeBg: '#e07b2a', badgeText: '#fff', nudge: '-1px' },
+  miss:       { Icon: MinusCircle,   label: 'Miss',       textClass: 'text-[#e05c2a]', badgeBg: '#e05c2a', badgeText: '#fff' },
+  blunder:    { Icon: XCircle,       label: 'Blunder',    textClass: 'text-[#ca3431]', badgeBg: '#ca3431', badgeText: '#fff' },
 };
 
 const SIDEBAR_W    = 208;  // w-52
@@ -107,6 +100,7 @@ type PanelState = 'menu' | 'paste' | 'analysis' | 'freeplay' | 'play' | 'reperto
 
 export default function Home() {
   const [result, setResult]           = useState<AnalysisResult | null>(null);
+  const [currentReviewId, setCurrentReviewId] = useState<string | null>(null);
   const [loading, setLoading]         = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<{ analyzed: number; total: number } | null>(null);
   const [error, setError]             = useState<string | null>(null);
@@ -160,6 +154,9 @@ export default function Home() {
   const [deepDepth, setDeepDepth] = useState<number | null>(null);
   const deepFenRef = useRef<string>('');
 
+  // Tablebase probe result
+  const [tablebase, setTablebase] = useState<TablebaseResult | null>(null);
+
   // Animate board pieces only when a move is physically made (drag/click), not during navigation
   const [animatePieces, setAnimatePieces] = useState(false);
 
@@ -207,6 +204,9 @@ export default function Home() {
           } else if (event.type === 'complete') {
             setResult(event.result);
             setPanelState('analysis');
+            if (currentReviewId) {
+              updateReviewAnalysis(currentReviewId, event.result).catch(() => {});
+            }
           } else if (event.type === 'error') {
             throw new Error(event.detail ?? 'Analysis failed');
           }
@@ -523,7 +523,7 @@ export default function Home() {
     if (!result) return;
     const white = result.headers.White ?? 'White';
     const black = result.headers.Black ?? 'Black';
-    await saveReview({
+    const saved = await saveReview({
       folderId: saveFolderId,
       name: saveGameName.trim() || `${white} vs ${black}`,
       pgn,
@@ -532,13 +532,15 @@ export default function Home() {
       date: result.headers.Date,
       result,
     });
+    setCurrentReviewId(saved.id);
     setSaveModal(false);
     setLibraryRefresh((n) => n + 1);
   }
 
-  function handleLoadFromLibrary(loadPgn: string, loadResult: AnalysisResult) {
+  function handleLoadFromLibrary(loadPgn: string, loadResult: AnalysisResult, reviewId: string) {
     setPgn(loadPgn);
     setResult(loadResult);
+    setCurrentReviewId(reviewId);
     setIsQuickLoaded(false);
     setSelectedPly(null);
     setExploreHistory([]);
@@ -771,6 +773,23 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [deepLines, deepDepth, panelState]);
 
+  // Tablebase probe — only when ≤7 pieces on the board
+  useEffect(() => {
+    const fen = displayFen === 'start'
+      ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+      : displayFen;
+    const boardPart = fen.split(' ')[0];
+    const pieceCount = (boardPart.match(/[a-zA-Z]/g) ?? []).length;
+    if (pieceCount > 7) { setTablebase(null); return; }
+    let cancelled = false;
+    fetch(`${API}/api/analysis/tablebase?fen=${encodeURIComponent(fen)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setTablebase(data ?? null); })
+      .catch(() => { if (!cancelled) setTablebase(null); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayFen]);
+
   // Live opening detection for play mode
   const [playOpening, setPlayOpening] = useState<{ name: string; eco: string } | null>(null);
   useEffect(() => {
@@ -882,34 +901,20 @@ export default function Home() {
               animatePieces={animatePieces}
               badgeScale={!isExploring && gameMoveAtPly?.classification === 'miss' ? 1.4 : 1}
               badge={!isExploring && gameMoveAtPly?.classification ? (() => {
-                const isMiss  = gameMoveAtPly.classification === 'miss';
-                const cls = CLS_LABEL[gameMoveAtPly.classification];
+                const isMiss = gameMoveAtPly.classification === 'miss';
+                const cls    = CLS_LABEL[gameMoveAtPly.classification];
                 const badgePx = (boardSize / 8) * 0.35 * (isMiss ? 1.4 : 1);
                 const iconPx  = Math.round(badgePx * 0.55);
-                const fontPx  = Math.round(badgePx * (isMiss ? 0.85 : 0.65));
                 return (
                   <span
-                    className="w-full h-full rounded-full flex items-center justify-center font-bold shadow-md"
+                    className="w-full h-full rounded-full flex items-center justify-center shadow-md"
                     style={{ backgroundColor: cls.badgeBg, color: cls.badgeText }}
                   >
-                    {gameMoveAtPly.classification === 'excellent'
-                      ? <SolidThumbsUp size={iconPx} color={cls.badgeText} />
-                      : cls.Icon
-                      ? <cls.Icon size={iconPx} strokeWidth={cls.strokeWidth ?? 3.5} />
-                      : (cls.symbol === '!!' || cls.symbol === '??' || cls.symbol === '?!')
-                      ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, gap: 0 }}>
-                          {cls.symbol.split('').map((ch, i) => (
-                            <span key={i} style={{ fontWeight: 900, fontSize: `${fontPx}px`, lineHeight: 1, display: 'block', WebkitTextStroke: '0.5px currentColor' }}>{ch}</span>
-                          ))}
-                        </span>
-                      : <span style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: `${cls.symbol === '★' ? fontPx * 1.4 : fontPx}px`,
-                          lineHeight: 1,
-                          fontWeight: (cls.symbol === '?' || isMiss) ? 900 : 'bold',
-                          WebkitTextStroke: (cls.symbol === '?' || isMiss) ? '1px currentColor' : undefined,
-                          marginTop: cls.symbol === '★' ? '-5px' : '0',
-                        }}>{cls.symbol}</span>}
+                    <cls.Icon
+                      size={iconPx}
+                      strokeWidth={cls.strokeWidth ?? 2}
+                      style={cls.nudge ? { marginTop: cls.nudge } : undefined}
+                    />
                   </span>
                 );
               })() : undefined}
@@ -1037,6 +1042,31 @@ export default function Home() {
             : <p className="text-xs text-zinc-600 py-2 text-center">Analysing position…</p>
           }
         </div>
+
+        {/* ── Tablebase result ── */}
+        {tablebase && (() => {
+          const { category, dtm, dtz } = tablebase;
+          const label: Record<string, string> = {
+            win: 'Win', loss: 'Loss', draw: 'Draw',
+            'cursed-win': 'Cursed Win', 'blessed-loss': 'Blessed Loss',
+          };
+          const colorClass: Record<string, string> = {
+            win: 'text-emerald-400', loss: 'text-red-400', draw: 'text-zinc-400',
+            'cursed-win': 'text-yellow-400', 'blessed-loss': 'text-yellow-400',
+          };
+          const movesNum = dtm != null ? Math.ceil(Math.abs(dtm) / 2) : null;
+          const suffix = movesNum != null
+            ? ` in ${movesNum} move${movesNum !== 1 ? 's' : ''}`
+            : dtz != null ? ` (dtz ${Math.abs(dtz)})` : '';
+          return (
+            <div className="shrink-0 border-b border-zinc-800 px-4 py-2 flex items-center gap-2">
+              <span className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600">TB</span>
+              <span className={`text-xs font-semibold ${colorClass[category] ?? 'text-zinc-400'}`}>
+                {label[category] ?? category}{suffix}
+              </span>
+            </div>
+          );
+        })()}
 
         {/* ── Opening name — updates as you navigate moves ── */}
         {result && (() => {
@@ -1517,7 +1547,7 @@ function ClassificationSummary({ moves }: { moves: MoveEval[] }) {
               className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
               style={{ backgroundColor: info.badgeBg, color: info.badgeText }}
             >
-              {info.Icon ? <info.Icon size={11} strokeWidth={2.5} /> : (info.symbol || '·')}
+              <info.Icon size={11} strokeWidth={info.strokeWidth ?? 2.5} style={info.nudge ? { marginTop: info.nudge } : undefined} />
             </span>
             <span className={`text-xs font-mono ${b > 0 ? 'text-zinc-200' : 'text-zinc-700'}`}>{b}</span>
           </div>

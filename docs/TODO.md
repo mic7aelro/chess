@@ -12,10 +12,13 @@
 - [x] Repertoire: settings icon to toggle 1 vs 3 engine lines shown
 - [x] Allow arrows to be used in repertoire page for navigation
 - [x] Add line names somewhere in the repertoire move line
-- [ ] Make miss badge larger and bolder on the board square
-- [ ] Analysis modal: never cut off/scrollable — full graph always visible, moves box below
-- [ ] Alternate line: left/right arrow navigation should not wipe the line
-- [ ] Alternate line: remove eval scores next to moves (just show move numbers + SAN)
+- [x] Make miss badge larger and bolder on the board square
+- [x] Tablebase probe shown in analysis and repertoire builder (≤7 pieces)
+- [x] Re-analyse now writes updated result back to MongoDB automatically
+- [x] Move classification icons replaced with Lucide set (Zap, Award, Star, TrendingUp, etc.)
+- [x] Analysis modal: never cut off/scrollable — full graph always visible, moves box below
+- [x] Alternate line: left/right arrow navigation should not wipe the line
+- [x] Alternate line: remove eval scores next to moves (just show move numbers + SAN)
 
 ---
 

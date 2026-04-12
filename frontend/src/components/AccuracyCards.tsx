@@ -1,15 +1,6 @@
 'use client';
 
-import { BookOpen, Check } from 'lucide-react';
-
-// Solid filled thumbs-up matching Chess.com's "Excellent" icon style
-function SolidThumbsUp({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} xmlns="http://www.w3.org/2000/svg">
-      <path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83V18c0 1.1.9 2 2 2h9c.83 0 1.58-.51 1.83-1.22l3-7.12z"/>
-    </svg>
-  );
-}
+import { BookOpen, Check, Zap, Star, Award, TrendingUp, AlertCircle, AlertTriangle, MinusCircle, XCircle } from 'lucide-react';
 import type { Classification, MoveEval, PlayerStats } from '@/types';
 
 interface Props {
@@ -31,31 +22,29 @@ function countClassifications(moves: MoveEval[], side: 'white' | 'black'): Count
   return counts;
 }
 
-type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; fill?: string; className?: string }>;
+type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string; style?: React.CSSProperties }>;
 
 const ROWS: {
   key: Classification;
   label: string;
-  symbol?: string;
-  Icon?: IconComponent;
+  Icon: IconComponent;
   iconSize?: number;
-  iconFill?: boolean;
   strokeWidth?: number;
-  symbolSize: string;
+  iconNudge?: string;
   symbolClass: string;
   badgeBg: string;
   badgeText: string;
 }[] = [
-  { key: 'brilliant',  label: 'Brilliant',  symbol: '!!', symbolSize: '22px', symbolClass: 'text-[#1fada8]', badgeBg: '#1fada8', badgeText: '#fff' },
-  { key: 'great',      label: 'Great',      symbol: '!',  symbolSize: '26px', symbolClass: 'text-[#5c8fff]', badgeBg: '#5c8fff', badgeText: '#fff' },
-  { key: 'book',       label: 'Book',       Icon: BookOpen,   iconSize: 20, symbolSize: '14px', symbolClass: 'text-[#a0784a]', badgeBg: '#7c4e28', badgeText: '#f5dfc0', strokeWidth: 1.5 },
-  { key: 'best',       label: 'Best',       symbol: '★',  symbolSize: '32px', symbolClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  { key: 'excellent',  label: 'Excellent',  iconSize: 20, symbolSize: '14px', symbolClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  { key: 'good',       label: 'Good',       Icon: Check,      iconSize: 20, symbolSize: '13px', symbolClass: 'text-[#96bc4b]', badgeBg: '#96bc4b', badgeText: '#fff', strokeWidth: 3 },
-  { key: 'inaccuracy', label: 'Inaccuracy', symbol: '?!', symbolSize: '18px', symbolClass: 'text-[#f4bf00]', badgeBg: '#f4bf00', badgeText: '#fff' },
-  { key: 'mistake',    label: 'Mistake',    symbol: '?',  symbolSize: '22px', symbolClass: 'text-[#e07b2a]', badgeBg: '#e07b2a', badgeText: '#fff' },
-  { key: 'miss',       label: 'Miss',       symbol: '⊘',  symbolSize: '26px', symbolClass: 'text-[#e05c2a]', badgeBg: '#e05c2a', badgeText: '#fff' },
-  { key: 'blunder',    label: 'Blunder',    symbol: '??', symbolSize: '18px', symbolClass: 'text-[#ca3431]', badgeBg: '#ca3431', badgeText: '#fff' },
+  { key: 'brilliant',  label: 'Brilliant',  Icon: Zap,          iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#1fada8]', badgeBg: '#1fada8', badgeText: '#fff' },
+  { key: 'great',      label: 'Great',      Icon: Award,        iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#5c8fff]', badgeBg: '#5c8fff', badgeText: '#fff' },
+  { key: 'book',       label: 'Book',       Icon: BookOpen,     iconSize: 16, strokeWidth: 1.5, symbolClass: 'text-[#a0784a]', badgeBg: '#7c4e28', badgeText: '#f5dfc0' },
+  { key: 'best',       label: 'Best',       Icon: Star,         iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
+  { key: 'excellent',  label: 'Excellent',  Icon: TrendingUp,   iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
+  { key: 'good',       label: 'Good',       Icon: Check,        iconSize: 18, strokeWidth: 3,   symbolClass: 'text-[#96bc4b]', badgeBg: '#96bc4b', badgeText: '#fff' },
+  { key: 'inaccuracy', label: 'Inaccuracy', Icon: AlertCircle,  iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#f4bf00]', badgeBg: '#f4bf00', badgeText: '#fff' },
+  { key: 'mistake',    label: 'Mistake',    Icon: AlertTriangle, iconSize: 18, strokeWidth: 2,  iconNudge: '-1px', symbolClass: 'text-[#e07b2a]', badgeBg: '#e07b2a', badgeText: '#fff' },
+  { key: 'miss',       label: 'Miss',       Icon: MinusCircle,  iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#e05c2a]', badgeBg: '#e05c2a', badgeText: '#fff' },
+  { key: 'blunder',    label: 'Blunder',    Icon: XCircle,      iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#ca3431]', badgeBg: '#ca3431', badgeText: '#fff' },
 ];
 
 function resolveName(name: string, fallback: string): string {
@@ -94,7 +83,7 @@ export function AccuracyCards({ whiteName, blackName, white, black, moves }: Pro
 
       {/* Classification rows */}
       <div className="divide-y divide-zinc-800/40">
-        {ROWS.map(({ key, label, symbol, Icon, iconSize, iconFill, strokeWidth, symbolSize, symbolClass, badgeBg, badgeText }) => {
+        {ROWS.map(({ key, label, Icon, iconSize, strokeWidth, iconNudge, symbolClass, badgeBg, badgeText }) => {
           const wCount = wCounts[key] ?? 0;
           const bCount = bCounts[key] ?? 0;
           return (
@@ -106,32 +95,10 @@ export function AccuracyCards({ whiteName, blackName, white, black, moves }: Pro
               {/* Colored circle badge with label below */}
               <div className="flex flex-col items-center px-6 min-w-[72px]">
                 <span
-                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold"
-                  style={{ backgroundColor: badgeBg, color: badgeText, fontSize: symbolSize, lineHeight: 1 }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: badgeBg, color: badgeText }}
                 >
-                  {key === 'excellent'
-                    ? <SolidThumbsUp size={iconSize ?? 20} color={badgeText} />
-                    : Icon
-                    ? <Icon
-                        size={iconSize ?? 14}
-                        strokeWidth={strokeWidth ?? 2.5}
-                        fill={'none'}
-                      />
-                    : (symbol === '?!' || symbol === '??' || symbol === '!!')
-                    ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, gap: 0 }}>
-                        {symbol.split('').map((ch, i) => (
-                          <span key={i} style={{ fontWeight: 900, fontSize: symbolSize, lineHeight: 1, display: 'block', WebkitTextStroke: '0.5px currentColor' }}>{ch}</span>
-                        ))}
-                      </span>
-                    : <span style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        fontWeight: 'bold',
-                        marginTop: symbol === '★' ? '-2px' : symbol === '⊘' ? '-3px' : '0',
-                        width: '100%',
-                      }}>{symbol}</span>}
+                  <Icon size={iconSize ?? 18} strokeWidth={strokeWidth ?? 2} style={iconNudge ? { marginTop: iconNudge } : undefined} />
                 </span>
                 <span className="text-xs text-zinc-500 mt-1">{label}</span>
               </div>

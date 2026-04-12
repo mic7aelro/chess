@@ -49,6 +49,8 @@ function normFen(f: string) {
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+interface TablebaseResult { category: string; dtm: number | null; dtz: number | null }
+
 function buildTree(
   fen: string,
   movesMap: Map<string, RepertoireMove[]>,
@@ -244,6 +246,7 @@ export function RepertoirePanel({ onBack }: Props) {
   const [deepDepth, setDeepDepth] = useState<number | null>(null);
   const [lineCount, setLineCount] = useState<1 | 3>(1);
   const [opening, setOpening]     = useState<{ name: string; eco: string } | null>(null);
+  const [tablebase, setTablebase] = useState<TablebaseResult | null>(null);
   const [openingCache, setOpeningCache] = useState<Map<string, string>>(new Map());
   const fenRef         = useRef<string>('');
   const movesMapRef    = useRef<Map<string, RepertoireMove[]>>(new Map());
@@ -306,6 +309,20 @@ export function RepertoirePanel({ onBack }: Props) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [fen]);
+
+  // Tablebase probe — only when ≤7 pieces on the board
+  useEffect(() => {
+    if (mode !== 'build') return;
+    const boardPart = fen.split(' ')[0];
+    const pieceCount = (boardPart.match(/[a-zA-Z]/g) ?? []).length;
+    if (pieceCount > 7) { setTablebase(null); return; }
+    let cancelled = false;
+    fetch(`${API}/api/analysis/tablebase?fen=${encodeURIComponent(fen)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setTablebase(data ?? null); })
+      .catch(() => { if (!cancelled) setTablebase(null); });
+    return () => { cancelled = true; };
+  }, [fen, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Arrow-key navigation
   const goBack = useCallback(() => {
@@ -738,6 +755,31 @@ export function RepertoirePanel({ onBack }: Props) {
               </div>
             </div>
           )}
+
+          {/* Tablebase result */}
+          {tablebase && mode === 'build' && (() => {
+            const { category, dtm, dtz } = tablebase;
+            const label: Record<string, string> = {
+              win: 'Win', loss: 'Loss', draw: 'Draw',
+              'cursed-win': 'Cursed Win', 'blessed-loss': 'Blessed Loss',
+            };
+            const colorClass: Record<string, string> = {
+              win: 'text-emerald-400', loss: 'text-red-400', draw: 'text-white/40',
+              'cursed-win': 'text-yellow-400', 'blessed-loss': 'text-yellow-400',
+            };
+            const movesNum = dtm != null ? Math.ceil(Math.abs(dtm) / 2) : null;
+            const suffix = movesNum != null
+              ? ` in ${movesNum} move${movesNum !== 1 ? 's' : ''}`
+              : dtz != null ? ` (dtz ${Math.abs(dtz)})` : '';
+            return (
+              <div className="px-4 py-2 border-b border-white/5 shrink-0 flex items-center gap-2">
+                <span className="text-[10px] font-mono font-semibold uppercase tracking-widest text-white/20">TB</span>
+                <span className={`text-xs font-semibold ${colorClass[category] ?? 'text-white/40'}`}>
+                  {label[category] ?? category}{suffix}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* Opening name */}
           {opening && (

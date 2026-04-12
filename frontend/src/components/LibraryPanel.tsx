@@ -15,7 +15,7 @@ import {
 import type { AnalysisResult } from '@/types';
 
 interface Props {
-  onLoad: (pgn: string, result: AnalysisResult) => void;
+  onLoad: (pgn: string, result: AnalysisResult, reviewId: string) => void;
   onRerun: (pgn: string) => void;
   refreshKey: number;
 }
@@ -268,7 +268,7 @@ function ReviewRow({
 }: {
   review: SavedReview;
   renaming: string | null;
-  onLoad: (pgn: string, result: AnalysisResult) => void;
+  onLoad: (pgn: string, result: AnalysisResult, reviewId: string) => void;
   onRightClick: (e: React.MouseEvent, review: SavedReview) => void;
   onRenameChange: (v: string) => void;
   onRenameCommit: () => void;
@@ -298,7 +298,7 @@ function ReviewRow({
   return (
     <div
       className="flex items-center px-3 py-1.5 hover:bg-zinc-800/40 cursor-pointer rounded mx-1 select-none"
-      onClick={() => onLoad(review.pgn, review.result)}
+      onClick={() => onLoad(review.pgn, review.result, review.id)}
       onContextMenu={(e) => onRightClick(e, review)}
     >
       <div className="min-w-0">
