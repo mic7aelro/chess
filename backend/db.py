@@ -10,7 +10,9 @@ _client: AsyncIOMotorClient | None = None
 def get_client() -> AsyncIOMotorClient:
     global _client
     if _client is None:
-        uri = os.environ["MONGODB_URI"]
+        uri = os.environ.get("MONGODB_URI")
+        if not uri:
+            raise RuntimeError("MONGODB_URI env var is not set")
         _client = AsyncIOMotorClient(uri)
     return _client
 

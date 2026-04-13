@@ -26,16 +26,21 @@ app.include_router(repertoire_router)
 
 @app.on_event("startup")
 async def create_indexes():
-    from db import get_db
-    db = get_db()
-    # Drop legacy unique index on (fen, color) that prevented multiple moves per position
+    import logging
+    log = logging.getLogger("startup")
     try:
-        await db["repertoire"].drop_index("fen_1_color_1")
-    except Exception:
-        pass
-    await db["repertoire"].create_index(
-        [("fen", 1), ("move", 1), ("color", 1)], unique=True
-    )
+        from db import get_db
+        db = get_db()
+        try:
+            await db["repertoire"].drop_index("fen_1_color_1")
+        except Exception:
+            pass
+        await db["repertoire"].create_index(
+            [("fen", 1), ("move", 1), ("color", 1)], unique=True
+        )
+        log.info("[startup] MongoDB indexes OK")
+    except Exception as exc:
+        log.error(f"[startup] MongoDB index creation failed (non-fatal): {exc}")
 
 
 @app.get("/health")
