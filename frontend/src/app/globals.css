@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light dark;
 }
 
 @theme inline {
@@ -23,4 +24,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Chess pieces use SVG paths that inherit 'fill' via SVG inheritance from their
+   parent <g> element. Prevent any accidental CSS fill cascade into the board area. */
+[data-piece] svg {
+  color: #000000;
 }

@@ -640,11 +640,11 @@ export function RepertoirePanel({ onBack }: Props) {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
-        {/* Board column */}
-        <div className="flex flex-col items-center justify-center gap-3 p-6 flex-[6] border-r border-white/10">
-          <div className="w-full max-w-[620px] aspect-square">
+        {/* Board column — full width on mobile (stacks above tree), side column on desktop */}
+        <div className="shrink-0 flex flex-col items-center gap-3 p-3 md:p-6 md:flex-[6] border-b md:border-b-0 md:border-r border-white/10">
+          <div className="w-full max-w-[340px] md:max-w-[620px] aspect-square">
             <Chessboard
               options={{
                 position: fen,
@@ -667,7 +667,7 @@ export function RepertoirePanel({ onBack }: Props) {
 
           {/* Feedback */}
           {mode === 'drill' && drillResult && (
-            <div className={`w-full max-w-[620px] text-center text-sm font-semibold py-2.5 rounded ${
+            <div className={`w-full max-w-[340px] md:max-w-[620px] text-center text-sm font-semibold py-2.5 rounded ${
               drillResult === 'correct'
                 ? 'bg-green-600/20 text-green-400'
                 : 'bg-red-600/20 text-red-400'
@@ -682,14 +682,14 @@ export function RepertoirePanel({ onBack }: Props) {
 
           {/* Build mode: show prep at current position */}
           {mode === 'build' && prepAtCurrent && (
-            <div className="w-full max-w-[620px] text-center text-xs text-[#5c8fff]/80 bg-[#5c8fff]/10 rounded py-1.5">
+            <div className="w-full max-w-[340px] md:max-w-[620px] text-center text-xs text-[#5c8fff]/80 bg-[#5c8fff]/10 rounded py-1.5">
               Prep here: <span className="font-bold text-[#5c8fff]">{prepAtCurrent.san}</span>
             </div>
           )}
 
           {/* Move history */}
           {history.length > 0 && (
-            <p className="text-xs text-white/30 text-center max-w-[620px] leading-relaxed">
+            <p className="text-xs text-white/30 text-center max-w-[340px] md:max-w-[620px] leading-relaxed">
               {history.map((san, i) => {
                 const isWhiteMove = i % 2 === 0;
                 const moveNum = Math.floor(i / 2) + 1;
@@ -699,7 +699,7 @@ export function RepertoirePanel({ onBack }: Props) {
           )}
 
           {/* Controls */}
-          <div className="flex gap-2 w-full max-w-[620px]">
+          <div className="flex gap-2 w-full max-w-[340px] md:max-w-[620px]">
             <button
               onClick={resetBoard}
               className="flex-1 py-2.5 rounded bg-white/8 hover:bg-white/15 text-sm text-white/60 transition-colors"
@@ -730,8 +730,8 @@ export function RepertoirePanel({ onBack }: Props) {
           </div>
         </div>
 
-        {/* Right column: engine + opening + tree */}
-        <div className="flex flex-col flex-[3] overflow-hidden min-w-0">
+        {/* Right column: engine + opening + tree — fills remaining space on mobile */}
+        <div className="flex flex-col flex-1 md:flex-[3] overflow-hidden min-w-0">
 
           {/* Engine lines (build mode only) */}
           {mode === 'build' && (
