@@ -10,7 +10,7 @@ from typing import Any
 
 import requests as _requests
 
-STOCKFISH_PATH  = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
+STOCKFISH_PATH  = os.environ.get("STOCKFISH_PATH", "stockfish")
 ANALYSIS_DEPTH   = 18                             # depth for batch game analysis
 ANALYSIS_LIMIT   = chess.engine.Limit(depth=ANALYSIS_DEPTH)             # depth-only — deterministic scores
 SURPRISE_DEPTH   = chess.engine.Limit(depth=5)                          # shallow pass — deterministic, stays non-obvious
