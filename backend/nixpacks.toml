@@ -1,5 +1,5 @@
-[phases.setup]
-nixPkgs = ["python312", "stockfish"]
+[variables]
+NIXPACKS_PYTHON_VERSION = "3.12"
 
-[phases.install]
-cmds = ["python3 -m pip install -r requirements.txt"]
+[phases.setup]
+nixPkgs = ["stockfish"]
