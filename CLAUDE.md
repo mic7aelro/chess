@@ -1,4 +1,4 @@
-# Project Mercury ♟️
+# mic7aelr/chess ♟️
 
 *A Chess.com-style Game Review System*
 
@@ -16,7 +16,7 @@ Mercury is a chess game analysis tool that analyses games move-by-move using Sto
 |----------|------------|
 | Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS, react-chessboard, chess.js, Recharts, lucide-react |
 | Backend  | Python 3.12+, FastAPI 0.115, Uvicorn, python-chess, Motor (async MongoDB), python-dotenv, requests |
-| Database | MongoDB Atlas — `mercuryChess` DB with `folders`, `games`, `analyses` collections |
+| Database | MongoDB Atlas — `chess` DB with `folders`, `games`, `analyses`, `repertoire` collections |
 | Engine   | Stockfish via UCI (python-chess bridge) |
 | Openings | Lichess Explorer API (Masters + general DB, optional `LICHESS_TOKEN`) |
 | Hosting  | Vercel (frontend) · Railway (backend) |
@@ -26,7 +26,7 @@ Mercury is a chess game analysis tool that analyses games move-by-move using Sto
 ## Project Structure
 
 ```
-mercury-chess/
+chess/
 ├── backend/
 │   ├── main.py                  # FastAPI app, CORS, router registration
 │   ├── db.py                    # Motor/MongoDB client (lazy singleton)
@@ -150,18 +150,21 @@ Set via `NEXT_PUBLIC_API_URL` env var (falls back to `http://localhost:8000`).
 | Var | Description |
 |-----|-------------|
 | `MONGODB_URI` | MongoDB Atlas connection string |
+| `CORS_ORIGINS` | `https://chess.mic7aelr.com` |
+| `PORT` | `8000` — must match Railway public networking port |
 | `LICHESS_TOKEN` | Optional — higher Lichess API rate limits |
-| `PORT` | Injected by Railway — used in start command |
+| `ENGINE_THREADS` | `2` — tune to Railway vCPU count |
 
 ### Frontend (Vercel)
 | Var | Description |
 |-----|-------------|
 | `NEXT_PUBLIC_API_URL` | Railway backend URL |
 
-### Start command (Railway)
-```
-uvicorn main:app --host 0.0.0.0 --port $PORT
-```
+### Deployment
+- Backend: Railway, Dockerfile builder (`python:3.12-slim` + apt stockfish), auto-deploys on merge to `main`
+- Frontend: Vercel, auto-deploys on merge to `main`
+- Live at: `https://chess.mic7aelr.com`
+- Backend URL: `https://chess-production-5b01.up.railway.app`
 
 ---
 

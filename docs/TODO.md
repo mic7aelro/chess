@@ -3,7 +3,10 @@
 ## Completed
 - MongoDB integration (replacing localStorage) — `motor` + 3-collection schema (folders, games, analyses)
 - All hardcoded `localhost:8000` URLs replaced with `NEXT_PUBLIC_API_URL` env var
-- Railway-ready backend: start command uses `$PORT`, env vars documented
+- Railway backend live at `chess-production-5b01.up.railway.app` — Dockerfile build, Stockfish via `/usr/games`, PORT via Railway env
+- Vercel frontend live at `chess.mic7aelr.com` — auto-deploys on merge to `main`
+- MongoDB renamed from `mercuryChess` to `chess`, data migrated
+- Rebranded UI to `mic7aelr/chess`
 
 ---
 
@@ -28,9 +31,8 @@
 - [x] Rename local folder to `chess`
 - [x] Update top-left UI branding to `mic7aelr/chess`
 - [x] Update page title in layout.tsx
-- [ ] Update Vercel project name + domain to `chess.mic7aelr.com`
+- [x] Update Vercel project name + domain to `chess.mic7aelr.com`
 - [ ] Update Railway service name
-- [ ] Update CLAUDE.md + README to reflect new name
 - [ ] New favicon / logo if needed
 
 ---
@@ -41,10 +43,23 @@
 - [x] Deploy FastAPI backend to Railway
 - [x] Set production env vars: `MONGODB_URI`, `CORS_ORIGINS`
 - [x] Add subdomain `chess.mic7aelr.com` via CNAME → Vercel (see docs/DEPLOY.md)
-- [ ] HTTP Basic Auth via env vars (`HTTP_BASIC_USER` / `HTTP_BASIC_PASS`) for private access
+- [ ] Auth — decide approach (see Phase 1.5 below)
 - [ ] PWA manifest (`manifest.json`) — name, icons, `display: standalone`
 - [ ] iOS/Android meta tags in `<head>` for Add to Home Screen
 - [ ] Test install on iPhone (Safari → Share → Add to Home Screen) and Android
+
+---
+
+## Phase 1.5 — Auth
+
+Options to evaluate:
+- **HTTP Basic Auth** — simplest; just a username/password env var gate (`HTTP_BASIC_USER` / `HTTP_BASIC_PASS`) on the FastAPI backend; no user accounts, no frontend changes
+- **Clerk / Auth.js** — full user accounts with Google/GitHub OAuth; library becomes per-user; more work but enables multi-user
+- **Middleware-level (Vercel)** — password-protect the frontend at the edge with a Vercel middleware; backend stays open (CORS-gated)
+
+- [ ] Decide auth approach
+- [ ] Implement chosen approach
+- [ ] Protect all library routes (folders, games, analyses) — analysis endpoints can stay public
 
 ---
 
