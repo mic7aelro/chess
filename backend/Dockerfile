@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y stockfish && rm -rf /var/lib/apt/lists/*
-ENV PATH="/usr/games:${PATH}"
+# Verify stockfish installed and set its path as an env var for the app
+RUN ls -la /usr/games/stockfish
+ENV STOCKFISH_PATH=/usr/games/stockfish
 
 WORKDIR /app
 COPY requirements.txt .
