@@ -1019,8 +1019,8 @@ export default function Home() {
       {/* ── Left column: board ── */}
       <div className={`flex flex-col relative w-full md:flex-1 md:shrink-0 md:sticky md:top-0 md:h-screen ${panelState !== 'play' ? 'border-b md:border-b-0 md:border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
 
-        {/* Board: centred in available space */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Board: centred in available space on desktop; natural size on mobile */}
+        <div className="md:flex-1 flex items-center justify-center">
           <div className="flex flex-col gap-2">
             {/* Top player label */}
             {result && (() => {
