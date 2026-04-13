@@ -35,6 +35,53 @@ def _get_eval_engine() -> chess.engine.SimpleEngine:
         _eval_engine.configure({"Threads": ENGINE_THREADS, "Hash": ENGINE_HASH_MB})
     return _eval_engine
 
+# ---------------------------------------------------------------------------
+# Dedicated engine for play-vs-engine (separate from eval so skill level
+# changes don't bleed into interactive analysis lines)
+# ---------------------------------------------------------------------------
+_play_engine: chess.engine.SimpleEngine | None = None
+_play_engine_skill: int = -1  # -1 = uninitialised / full strength
+_play_lock = threading.Lock()
+
+# Maps skill_level sent from the frontend to engine configuration.
+# UCI_Elo range on Stockfish is 1320–3190; for weaker play we use Skill Level 0
+# with a very short time limit which forces near-random moves.
+# Stockfish's UCI_Elo range is 1320–3190. For targets below 1320 we use
+# Skill Level (0 = ~1100) + a very short time budget so it can't correct blunders.
+_SKILL_CONFIG: dict[int, dict] = {
+    0:  {"use_elo": False, "skill": 0,  "time": 0.05},  # Easy      ≈200  Elo (random-ish)
+    5:  {"use_elo": False, "skill": 3,  "time": 0.15},  # Medium    ≈1000 Elo (short time + low skill)
+    11: {"use_elo": True,  "elo": 1500, "skill": 11, "time": 1.0},   # Hard      ≈1500 Elo
+    16: {"use_elo": True,  "elo": 2000, "skill": 16, "time": 1.0},   # Expert    ≈2000 Elo
+    20: {"use_elo": False, "skill": 20, "time": 1.0},                 # Stockfish full strength
+}
+
+def _get_play_engine(skill_level: int) -> tuple[chess.engine.SimpleEngine, float]:
+    """Return (engine, think_time_seconds), lazily initialised and reconfigured as needed."""
+    global _play_engine, _play_engine_skill
+    if _play_engine is None:
+        _play_engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+        _play_engine.configure({"Threads": max(1, ENGINE_THREADS // 2), "Hash": 64})
+        _play_engine_skill = -1
+
+    cfg = _SKILL_CONFIG.get(skill_level, _SKILL_CONFIG[20])
+
+    if skill_level != _play_engine_skill:
+        if cfg["use_elo"]:
+            _play_engine.configure({
+                "UCI_LimitStrength": True,
+                "UCI_Elo": cfg["elo"],
+                "Skill Level": cfg["skill"],
+            })
+        else:
+            _play_engine.configure({
+                "UCI_LimitStrength": False,
+                "Skill Level": cfg["skill"],
+            })
+        _play_engine_skill = skill_level
+
+    return _play_engine, cfg["time"]
+
 _PIECE_VALUES = {
     chess.PAWN: 100,
     chess.KNIGHT: 300,
@@ -469,14 +516,22 @@ def _elo_from_accuracy(accuracy: float) -> int:
     return 100
 
 
-def best_move(fen: str, depth: int = 15) -> dict[str, Any]:
-    """Return the engine's best move for the given position (used for play-vs-engine)."""
+def best_move(fen: str, skill_level: int = 20) -> dict[str, Any]:
+    """Return the engine's best move for the given position (used for play-vs-engine).
+
+    skill_level 0–20 maps to Stockfish Skill Level / UCI_Elo:
+      0  ≈ 1100 Elo  (Easy)
+      5  ≈ 1625 Elo
+      10 ≈ 2150 Elo  (Medium-hard)
+      20 = full strength (Expert)
+    """
     board = chess.Board(fen)
     if board.is_game_over():
         return {"move": None, "san": None, "from_sq": None, "to_sq": None, "fen": fen}
-    limit = chess.engine.Limit(depth=depth)
-    with _eval_lock:
-        engine = _get_eval_engine()
+    # Time-based limit so weaker levels don't take ages on trivial positions
+    with _play_lock:
+        engine, think_time = _get_play_engine(skill_level)
+        limit = chess.engine.Limit(time=think_time)
         result = engine.play(board, limit)
     move = result.move
     san  = board.san(move)

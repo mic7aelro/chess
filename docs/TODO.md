@@ -12,14 +12,12 @@
 
 ## Backlog — Play vs Engine
 
-Current state: can make moves and resign, nothing else.
-
-- [ ] Detect game end automatically (checkmate, stalemate, draw by repetition/50-move) and show result banner
-- [ ] "Review game" button on game end — pipes the completed PGN straight into analysis
-- [ ] "New game" button — reset board without going back to menu
-- [ ] Choose side (play as white or black)
-- [ ] Choose engine difficulty (limit Stockfish by depth or Elo)
-- [ ] Save completed game to library
+- [x] Detect game end automatically (checkmate, stalemate, draw by repetition/50-move) and show result banner
+- [x] "Review game" button on game end — pipes the completed PGN straight into analysis
+- [x] "New game" button — reset board without going back to menu
+- [x] Choose side (play as white or black)
+- [x] Choose engine difficulty — slider: Easy (~200), Medium (~1000), Hard (~1500), Expert (~2000), Stockfish (max); uses UCI_Elo + Skill Level + time limits per tier
+- [ ] Save completed game to library (save button — currently review→analysis panel→save works)
 
 ---
 

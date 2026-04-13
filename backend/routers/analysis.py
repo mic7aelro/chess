@@ -21,6 +21,7 @@ class PgnRequest(BaseModel):
 class FenRequest(BaseModel):
     fen: str
     depth: int = 20
+    skill_level: int = 20  # Stockfish Skill Level 0–20 (used by best-move endpoint)
 
 
 @router.post("/")
@@ -97,7 +98,7 @@ def opening(body: FenRequest):
 @router.post("/best-move")
 def get_best_move(body: FenRequest):
     try:
-        result = best_move(body.fen, body.depth)
+        result = best_move(body.fen, body.skill_level)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
