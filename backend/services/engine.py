@@ -6,12 +6,13 @@ import math
 import os
 import threading
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import requests as _requests
 
 STOCKFISH_PATH  = os.environ.get("STOCKFISH_PATH", "stockfish")
-ANALYSIS_DEPTH   = 18                             # depth for batch game analysis
+ANALYSIS_DEPTH   = 18                             # depth for batch game analysis (scoring + is_only_move)
 ANALYSIS_LIMIT   = chess.engine.Limit(depth=ANALYSIS_DEPTH)             # depth-only — deterministic scores
 SURPRISE_DEPTH   = chess.engine.Limit(depth=5)                          # shallow pass — deterministic, stays non-obvious
 
@@ -51,13 +52,21 @@ _OPENING_URLS = [
 
 _LICHESS_TOKEN: str | None = os.environ.get("LICHESS_TOKEN")
 
-_SESSION = _requests.Session()
-_SESSION.headers.update({
-    "User-Agent": "Mozilla/5.0 (compatible; MercuryChess/1.0)",
-    "Accept": "application/json",
-})
-if _LICHESS_TOKEN:
-    _SESSION.headers["Authorization"] = f"Bearer {_LICHESS_TOKEN}"
+# Thread-local sessions: requests.Session is not thread-safe for concurrent use.
+# Each worker thread in the ThreadPoolExecutor gets its own session.
+_thread_local = threading.local()
+
+def _get_session() -> _requests.Session:
+    if not hasattr(_thread_local, "session"):
+        sess = _requests.Session()
+        sess.headers.update({
+            "User-Agent": "Mozilla/5.0 (compatible; MercuryChess/1.0)",
+            "Accept": "application/json",
+        })
+        if _LICHESS_TOKEN:
+            sess.headers["Authorization"] = f"Bearer {_LICHESS_TOKEN}"
+        _thread_local.session = sess
+    return _thread_local.session
 
 
 def _fetch_opening(fen: str) -> tuple[bool, dict | None]:
@@ -70,7 +79,7 @@ def _fetch_opening(fen: str) -> tuple[bool, dict | None]:
     for url_tpl in _OPENING_URLS:
         url = url_tpl.format(fen=encoded)
         try:
-            resp = _SESSION.get(url, timeout=4)
+            resp = _get_session().get(url, timeout=4)
             if resp.status_code == 401:
                 print(f"[book] 401 Unauthorized — set LICHESS_TOKEN env var with a Lichess API token")
                 return False, None
@@ -88,23 +97,42 @@ def _fetch_opening(fen: str) -> tuple[bool, dict | None]:
 
 def _collect_book_moves(game: chess.pgn.Game) -> tuple[dict[int, dict], dict | None]:
     """Walk game positions and fetch opening data until out of theory.
-    Returns (book_by_ply, last_opening) where book_by_ply maps ply → opening info."""
+    Returns (book_by_ply, last_opening) where book_by_ply maps ply → opening info.
+
+    Lichess calls are dispatched in parallel (up to 4 workers) then results are
+    consumed in order so early-exit logic is preserved.
+    """
+    # Collect up to 20 pre-move FENs and the move that follows each
     board = game.board()
+    positions: list[tuple[str, chess.Move]] = []
+    for i, node in enumerate(game.mainline()):
+        if i >= 20:
+            break
+        positions.append((board.fen(), node.move))
+        board.push(node.move)
+
+    if not positions:
+        return {}, None
+
+    # Dispatch all fetches concurrently; results come back in submission order
+    executor = ThreadPoolExecutor(max_workers=4)
+    futures = [(executor.submit(_fetch_opening, fen), move) for fen, move in positions]
+    executor.shutdown(wait=False)   # don't block here — we'll block on each .result()
+
     book_by_ply: dict[int, dict] = {}
     last_opening: dict | None = None
+    replay = game.board()
 
-    for i, node in enumerate(game.mainline()):
-        if i >= 20:          # cap at move 10 — virtually no game leaves book after this
-            break
-        in_theory, opening_info = _fetch_opening(board.fen())
-        board.push(node.move)
+    for future, move in futures:
+        in_theory, opening_info = future.result()   # blocks until this slot is done
+        replay.push(move)
         if not in_theory:
-            print(f"[book] out of theory at ply {board.ply()}")
-            break                       # position has no known continuations → out of book
-        book_by_ply[board.ply()] = opening_info or {}
+            print(f"[book] out of theory at ply {replay.ply()}")
+            break
+        book_by_ply[replay.ply()] = opening_info or {}
         if opening_info:
             last_opening = opening_info
-        print(f"[book] ply {board.ply()} → book, opening={opening_info}")
+        print(f"[book] ply {replay.ply()} → book, opening={opening_info}")
 
     print(f"[book] collected {len(book_by_ply)} book plies, last_opening={last_opening}")
     return book_by_ply, last_opening
@@ -156,11 +184,14 @@ def analyse_game(pgn_text: str, on_progress=None) -> dict[str, Any]:
         print(f"[engine] Stockfish threads={ENGINE_THREADS} hash={ENGINE_HASH_MB}MB depth={ANALYSIS_DEPTH}")
         board = game.board()
 
-        prev_infos: list[dict] = engine.analyse(
-            board, ANALYSIS_LIMIT, multipv=3
-        )
-        prev_score = _normalise_score(prev_infos[0]["score"], board.turn)
-        initial_lines = _extract_lines(board, prev_infos)
+        # Scoring pass: multipv=2 @ depth 18
+        #   Line 0 — top score for classification
+        #   Line 1 — second-best for is_only_move ("great" detection)
+        # Display lines are NOT computed during game review — the frontend fetches
+        # them on demand via /api/analysis/eval when the user navigates to a move.
+        prev_score_infos: list[dict] = engine.analyse(board, ANALYSIS_LIMIT, multipv=2)
+        prev_score = _normalise_score(prev_score_infos[0]["score"], board.turn)
+        initial_lines: list[dict] = []   # fetched live by frontend
 
         # Shallow pass on starting position for surprise baseline
         prev_shallow: list[dict] = engine.analyse(board, SURPRISE_DEPTH, multipv=5)
@@ -174,9 +205,7 @@ def analyse_game(pgn_text: str, on_progress=None) -> dict[str, Any]:
 
             score_before = prev_score  # best available from moving side's POV
 
-            # Surprise: move not in engine's top-3 at shallow depth (depth 8)
-            # Using shallow depth mirrors what a human finds "obvious" —
-            # strong engines find brilliant moves at depth 18 but not at depth 8.
+            # Surprise: move not in engine's top-5 at shallow depth
             shallow_top_sans = {
                 board.san(info["pv"][0])
                 for info in prev_shallow
@@ -184,30 +213,23 @@ def analyse_game(pgn_text: str, on_progress=None) -> dict[str, Any]:
             }
             surprise = san not in shallow_top_sans
 
-            # Only-move: gap between best and second-best is large
+            # Only-move: gap between best and second-best (both at depth 18)
             is_only_move = False
-            if len(prev_infos) >= 2 and prev_infos[1].get("pv"):
-                second_score = _normalise_score(prev_infos[1]["score"], turn)
+            if len(prev_score_infos) >= 2 and prev_score_infos[1].get("pv"):
+                second_score = _normalise_score(prev_score_infos[1]["score"], turn)
                 wp_gap = _cp_to_win_prob(score_before) - _cp_to_win_prob(second_score)
                 is_only_move = wp_gap > 0.25
 
             brilliant, is_sacrifice = _is_brilliant(board, move, surprise, score_before)
-
-            # Alt lines: engine's top suggestions from THIS position, excluding the played move
-            alt_lines = [
-                line for line in _extract_lines(board, prev_infos)
-                if line["san"] != san
-            ][:2]
 
             board.push(move)
 
             is_book = board.ply() in book_by_ply
             book_info = opening_by_ply.get(board.ply(), {})
 
-            infos: list[dict] = engine.analyse(
-                board, ANALYSIS_LIMIT, multipv=3
-            )
-            score_opponent = _normalise_score(infos[0]["score"], board.turn)
+            # Scoring pass: multipv=2 @ depth 18 — classification + is_only_move for next move
+            score_infos: list[dict] = engine.analyse(board, ANALYSIS_LIMIT, multipv=2)
+            score_opponent = _normalise_score(score_infos[0]["score"], board.turn)
             score_mover = -score_opponent
 
             cp_loss = max(0, score_before - score_mover)
@@ -216,7 +238,6 @@ def analyse_game(pgn_text: str, on_progress=None) -> dict[str, Any]:
                 "book" if is_book
                 else _classify(score_before, score_mover, brilliant, is_only_move, is_sacrifice)
             )
-            top_lines = _extract_lines(board, infos)
 
             moves.append({
                 "ply": board.ply(),
@@ -230,11 +251,11 @@ def analyse_game(pgn_text: str, on_progress=None) -> dict[str, Any]:
                 "opening_name": book_info.get("name"),
                 "opening_eco": book_info.get("eco"),
                 "fen": board.fen(),
-                "top_lines": top_lines,
-                "alt_lines": alt_lines,
+                "top_lines": [],    # populated on demand by frontend via /api/analysis/eval
+                "alt_lines": [],
             })
 
-            prev_infos = infos
+            prev_score_infos = score_infos
             prev_score = score_opponent
             prev_shallow = engine.analyse(board, SURPRISE_DEPTH, multipv=5)
 

@@ -60,7 +60,7 @@ This gives you Cloudflare's CDN, DDoS protection, and analytics on top of Vercel
    - Set **root directory** to `backend`
    - Set **watch branch** to `main`
 
-2. Railway auto-detects `nixpacks.toml` and installs Stockfish, then runs the start command from `railway.toml`.
+2. Railway uses the `Dockerfile` in `backend/` — builds `python:3.12-slim`, installs Stockfish via apt, and starts uvicorn on `$PORT`.
 
 ### Environment variables (set in Railway dashboard)
 
@@ -68,9 +68,10 @@ This gives you Cloudflare's CDN, DDoS protection, and analytics on top of Vercel
 |---|---|
 | `MONGODB_URI` | Your Atlas connection string |
 | `CORS_ORIGINS` | `https://chess.mic7aelr.com` |
+| `PORT` | `8000` (must match Railway public networking port) |
 | `LICHESS_TOKEN` | Optional — higher Lichess API rate limits |
 | `ENGINE_THREADS` | `2` (matches Railway 2 vCPU) |
-| `STOCKFISH_PATH` | Leave unset — defaults to `/usr/bin/stockfish` |
+| `STOCKFISH_PATH` | **Do not set** — Dockerfile sets it to `/usr/games/stockfish` |
 
 ### Recommended resources
 
@@ -82,7 +83,7 @@ This gives you Cloudflare's CDN, DDoS protection, and analytics on top of Vercel
 
 ### After deploy
 
-Copy the Railway-generated URL (e.g. `https://mercury-production.up.railway.app`) — you'll need it for Vercel.
+Copy the Railway-generated URL (e.g. `https://chess-production-5b01.up.railway.app`) — you'll need it for Vercel.
 
 ---
 
