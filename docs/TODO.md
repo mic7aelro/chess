@@ -10,6 +10,19 @@
 
 ---
 
+## Backlog — Play vs Engine
+
+Current state: can make moves and resign, nothing else.
+
+- [ ] Detect game end automatically (checkmate, stalemate, draw by repetition/50-move) and show result banner
+- [ ] "Review game" button on game end — pipes the completed PGN straight into analysis
+- [ ] "New game" button — reset board without going back to menu
+- [ ] Choose side (play as white or black)
+- [ ] Choose engine difficulty (limit Stockfish by depth or Elo)
+- [ ] Save completed game to library
+
+---
+
 ## Backlog — App Polish
 
 - [x] Repertoire: settings icon to toggle 1 vs 3 engine lines shown
@@ -63,6 +76,22 @@ Options to evaluate:
 
 ---
 
+## Phase 1.6 — Live Multiplayer
+
+Play a game against a friend in real time. Architecture TBD — rough options:
+
+- **WebSocket rooms** — backend manages game state; two clients connect to the same room via a shared game ID; moves broadcast to both players
+- **Lichess Board API** — create a game on Lichess programmatically and use their infrastructure for move relay; simpler but requires Lichess accounts
+- **Peer-to-peer (WebRTC)** — no server relay needed for moves; harder to implement, better latency
+
+- [ ] Decide approach (WebSocket rooms likely simplest given existing FastAPI backend)
+- [ ] Room creation — generate a shareable link/code a friend can join
+- [ ] Real-time move relay between both clients
+- [ ] Clock support (optional)
+- [ ] Post-game: auto-save PGN to library and offer instant review
+
+---
+
 ## Phase 2 — Offline Support
 
 - [ ] Integrate `stockfish.js` WASM build — runs engine in a browser Web Worker
@@ -72,14 +101,23 @@ Options to evaluate:
 
 ---
 
-## Phase 3 — Chess.com Auto-Review
+## Phase 3 — Game Import (Chess.com + Lichess)
 
+Enter your username and pull recent games directly — no PGN copy-paste needed.
+
+### Chess.com
 - [ ] Chess.com username field in settings
 - [ ] Poll `api.chess.com/pub/player/{username}/games/{year}/{month}` for recent games
 - [ ] Detect games not yet in library → auto-analyse + save
 - [ ] Auto-folder: "Chess.com — {Month Year}"
 - [ ] Badge/notification when new reviewed games are ready
 - [ ] Toggle: auto-review on/off, how many recent games to pull
+
+### Lichess
+- [ ] Lichess username field in settings
+- [ ] Poll `lichess.org/api/games/user/{username}` (ndjson stream) for recent games
+- [ ] Same auto-folder + badge + toggle flow as Chess.com
+- [ ] Optional: use existing `LICHESS_TOKEN` for authenticated requests (higher rate limits)
 
 ---
 
