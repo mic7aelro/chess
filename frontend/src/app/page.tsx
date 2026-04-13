@@ -64,15 +64,16 @@ const SIDEBAR_W    = 208;  // w-52
 const LIBRARY_W    = 256;  // w-64
 const PLAY_PANEL_W = 220;
 
-function useBoardSize(panelOpen: boolean) {
+function useBoardSize(panelOpen: boolean, showEvalBar: boolean) {
   const [size, setSize] = useState(600);
   useEffect(() => {
     function calc() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       if (w < 768) {
-        // Mobile: board fills viewport width, capped at ~55% of viewport height
-        setSize(Math.floor(Math.min(w - 8, h * 0.54)));
+        // Mobile: subtract eval bar (w-7 = 28px) + gap (gap-2 = 8px) so board fits viewport
+        const evalBarW = showEvalBar ? 36 : 0;
+        setSize(Math.floor(Math.min(w - 8 - evalBarW, h * 0.54)));
         return;
       }
       const extra  = panelOpen ? LIBRARY_W : 0;
@@ -84,7 +85,7 @@ function useBoardSize(panelOpen: boolean) {
     calc();
     window.addEventListener('resize', calc);
     return () => window.removeEventListener('resize', calc);
-  }, [panelOpen]);
+  }, [panelOpen, showEvalBar]);
   return size;
 }
 
@@ -164,7 +165,7 @@ export default function Home() {
   const [saveGameName, setSaveGameName]  = useState('');
   const [libraryRefresh, setLibraryRefresh] = useState(0);
 
-  const boardSize = useBoardSize(libraryOpen);
+  const boardSize = useBoardSize(libraryOpen, showEvalBar);
 
   // Progressive deepening — lines that update as Stockfish searches deeper
   const [deepLines, setDeepLines] = useState<TopLine[]>([]);
