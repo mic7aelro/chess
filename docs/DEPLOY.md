@@ -1,4 +1,4 @@
-# Mercury Chess — Deployment Guide
+# mic7aelr/chess — Deployment Guide
 
 ## Architecture
 
@@ -18,15 +18,15 @@ You need to do this **before** adding your custom domain in Vercel.
 
 1. Cloudflare dashboard → your domain → **DNS**
 2. Add a **CNAME** record:
-   - **Name**: `mercurychess`
+   - **Name**: `chess`
    - **Target**: `cname.vercel-dns.com`
    - **Proxy status**: **OFF** (grey cloud) — leave it off for now
 
 ### Step 2 — Add domain in Vercel
 
-1. Vercel project → **Settings → Domains** → add `mercurychess.mic7aelr.com`
+1. Vercel project → **Settings → Domains** → add `chess.mic7aelr.com`
 2. Vercel verifies the CNAME and provisions an SSL cert automatically (~1 min)
-3. Confirm the site loads at `https://mercurychess.mic7aelr.com` before continuing
+3. Confirm the site loads at `https://chess.mic7aelr.com` before continuing
 
 ### Step 3 — Enable Cloudflare proxy (optional but recommended)
 
@@ -46,7 +46,7 @@ This gives you Cloudflare's CDN, DDoS protection, and analytics on top of Vercel
 1. Create a free M0 cluster (or use existing)
 2. Network Access → Add IP `0.0.0.0/0` (Railway IPs are dynamic)
 3. Database Access → create a user, copy the connection string
-4. DB name: `mercuryChess` (collections auto-created on first write)
+4. DB name: `chess` (collections auto-created on first write)
 
 ---
 
@@ -56,7 +56,7 @@ This gives you Cloudflare's CDN, DDoS protection, and analytics on top of Vercel
 
 1. `railway login` then connect repo:
    - Railway dashboard → New Project → Deploy from GitHub repo
-   - Select `mic7aelro/mercury-chess`
+   - Select `mic7aelro/chess`
    - Set **root directory** to `backend`
    - Set **watch branch** to `main`
 
@@ -67,7 +67,7 @@ This gives you Cloudflare's CDN, DDoS protection, and analytics on top of Vercel
 | Variable | Value |
 |---|---|
 | `MONGODB_URI` | Your Atlas connection string |
-| `CORS_ORIGINS` | `https://mercurychess.mic7aelr.com` |
+| `CORS_ORIGINS` | `https://chess.mic7aelr.com` |
 | `LICHESS_TOKEN` | Optional — higher Lichess API rate limits |
 | `ENGINE_THREADS` | `2` (matches Railway 2 vCPU) |
 | `STOCKFISH_PATH` | Leave unset — defaults to `/usr/bin/stockfish` |
@@ -88,7 +88,7 @@ Copy the Railway-generated URL (e.g. `https://mercury-production.up.railway.app`
 
 ## 4. Vercel (frontend)
 
-1. Vercel dashboard → New Project → Import `mic7aelro/mercury-chess`
+1. Vercel dashboard → New Project → Import `mic7aelro/chess`
 2. Set **root directory** to `frontend`
 3. Framework: Next.js (auto-detected)
 4. **Watch branch**: `main` (auto-deploys on every merge)
@@ -99,7 +99,7 @@ Copy the Railway-generated URL (e.g. `https://mercury-production.up.railway.app`
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Your Railway backend URL |
 
-5. Add custom domain: `mercurychess.mic7aelr.com` (after DNS is set up in step 1)
+5. Add custom domain: `chess.mic7aelr.com` (after DNS is set up in step 1)
 
 ---
 
@@ -123,4 +123,4 @@ No manual deploy steps needed after initial setup.
 ## Health check
 
 - Backend: `https://<railway-url>/health` → `{"status": "ok"}`
-- Frontend: visit `https://mercurychess.mic7aelr.com`
+- Frontend: visit `https://chess.mic7aelr.com`

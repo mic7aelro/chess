@@ -16,7 +16,7 @@ Run through the full deployment checklist for Mercury Chess (Vercel + Railway) a
 
 ## Database (MongoDB Atlas)
 - [ ] Network access allows connections from Railway (0.0.0.0/0 or Railway IP range)
-- [ ] `mercuryChess` database exists with `folders`, `games`, `analyses` collections
+- [ ] `chess` database exists with `folders`, `games`, `analyses`, `repertoire` collections
 
 ## General
 - [ ] All changes committed and pushed to main
