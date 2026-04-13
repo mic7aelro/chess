@@ -37,10 +37,10 @@
 
 ## Phase 1 — Ship It (chess.mic7aelr.com)
 
-- [ ] Deploy frontend as standalone Vercel project
-- [ ] Deploy FastAPI backend to Railway
-- [ ] Set production env vars: `MONGODB_URI`, `CORS_ORIGINS`
-- [ ] Add subdomain `chess.mic7aelr.com` via CNAME → Vercel (see docs/DEPLOY.md)
+- [x] Deploy frontend as standalone Vercel project
+- [x] Deploy FastAPI backend to Railway
+- [x] Set production env vars: `MONGODB_URI`, `CORS_ORIGINS`
+- [x] Add subdomain `chess.mic7aelr.com` via CNAME → Vercel (see docs/DEPLOY.md)
 - [ ] HTTP Basic Auth via env vars (`HTTP_BASIC_USER` / `HTTP_BASIC_PASS`) for private access
 - [ ] PWA manifest (`manifest.json`) — name, icons, `display: standalone`
 - [ ] iOS/Android meta tags in `<head>` for Add to Home Screen
