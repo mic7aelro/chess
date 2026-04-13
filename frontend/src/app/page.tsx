@@ -68,10 +68,17 @@ function useBoardSize(panelOpen: boolean) {
   const [size, setSize] = useState(600);
   useEffect(() => {
     function calc() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (w < 768) {
+        // Mobile: board fills viewport width, capped at ~55% of viewport height
+        setSize(Math.floor(Math.min(w - 8, h * 0.54)));
+        return;
+      }
       const extra  = panelOpen ? LIBRARY_W : 0;
-      const rightW = window.innerWidth * 0.25;
-      const fromWidth  = window.innerWidth - SIDEBAR_W - extra - rightW - 80;
-      const fromHeight = window.innerHeight - 160;
+      const rightW = w * 0.25;
+      const fromWidth  = w - SIDEBAR_W - extra - rightW - 80;
+      const fromHeight = h - 160;
       setSize(Math.floor(Math.min(fromWidth, fromHeight)));
     }
     calc();
@@ -118,6 +125,16 @@ export default function Home() {
   const [isQuickLoaded, setIsQuickLoaded]   = useState(false);
   const [playThinking, setPlayThinking]     = useState(false);
   const [showEvalBar, setShowEvalBar]       = useState(true);
+
+  // Play vs engine
+  type PlayPhase = 'setup' | 'playing' | 'over';
+  const [playPhase, setPlayPhase]       = useState<PlayPhase>('setup');
+  const [playColor, setPlayColor]       = useState<'white' | 'black'>('white');
+  const [playSkill, setPlaySkill]       = useState<number>(5); // Stockfish Skill Level 0–20
+  const [gameOverReason, setGameOverReason] = useState<string | null>(null);
+  const playSkillRef = useRef<number>(5);
+  // Keep ref in sync so enginePlayMove always sees the latest skill level
+  playSkillRef.current = playSkill;
 
   // Repertoire — loaded when an analysis result is present
   const [repertoireWhite, setRepertoireWhite] = useState<RepertoireMove[]>([]);
@@ -235,12 +252,13 @@ export default function Home() {
     : null;
   const gameIsWhiteToMove = (selectedPly ?? 0) % 2 === 0;
 
-  const displayFen         = isExploring ? currentExploreFrame!.fen    : gameFen;
-  const displayEval        = deepLines.length > 0 ? deepLines[0].eval : (isExploring ? currentExploreFrame!.evalCp : gameEval);
-  const displayLines       = deepLines.length > 0 ? deepLines : (isExploring ? currentExploreFrame!.lines : gameLines);
-  const displayLastMove    = isExploring
+  const inPlayMode = panelState === 'play';
+  const displayFen      = isExploring ? currentExploreFrame!.fen : inPlayMode ? 'start' : gameFen;
+  const displayEval     = deepLines.length > 0 ? deepLines[0].eval : isExploring ? currentExploreFrame!.evalCp : inPlayMode ? 0 : gameEval;
+  const displayLines    = deepLines.length > 0 ? deepLines : isExploring ? currentExploreFrame!.lines : inPlayMode ? [] : gameLines;
+  const displayLastMove = isExploring
     ? { from: currentExploreFrame!.from_sq, to: currentExploreFrame!.to_sq }
-    : gameLastMove;
+    : inPlayMode ? null : gameLastMove;
   const displayIsWhiteToMove = isExploring
     ? new Chess(currentExploreFrame!.fen === 'start' ? undefined : currentExploreFrame!.fen).turn() === 'w'
     : gameIsWhiteToMove;
@@ -290,9 +308,27 @@ export default function Home() {
   // ---------------------------------------------------------------------------
   // Piece drag / click-to-move
   // ---------------------------------------------------------------------------
+  function getGameOverReason(chess: Chess): string {
+    if (chess.isCheckmate()) {
+      return chess.turn() === 'w' ? 'Black wins by checkmate' : 'White wins by checkmate';
+    }
+    if (chess.isStalemate()) return 'Draw — stalemate';
+    if (chess.isThreefoldRepetition()) return 'Draw — threefold repetition';
+    if (chess.isInsufficientMaterial()) return 'Draw — insufficient material';
+    if (chess.isDraw()) return 'Draw — 50-move rule';
+    return 'Game over';
+  }
+
   function handlePieceDrop(from: string, to: string): boolean {
-    const baseFen = isExploring ? currentExploreFrame!.fen : gameFen;
+    const baseFen = isExploring ? currentExploreFrame!.fen : inPlayMode ? 'start' : gameFen;
     const chess   = baseFen === 'start' ? new Chess() : new Chess(baseFen);
+
+    // In play mode: block drops when it's not the player's turn or engine is thinking
+    if (inPlayMode) {
+      if (playPhase !== 'playing' || playThinking) return false;
+      const turnIsWhite = chess.turn() === 'w';
+      if (turnIsWhite !== (playColor === 'white')) return false;
+    }
 
     let moveResult: ReturnType<Chess['move']>;
     try { moveResult = chess.move({ from, to, promotion: 'q' }); }
@@ -310,29 +346,34 @@ export default function Home() {
     setExploreHistory(newHistory);
     setExploreIdx(newUserIdx);
     // Record the branch point whenever starting from the main game (not extending an existing branch)
-    if (!isExploring) {
+    if (!isExploring && !inPlayMode) {
       setExploreBranchPly(selectedPly ?? null);
     }
     setTimeout(() => setAnimatePieces(false), 200);
 
     // Auto-enter freeplay mode when making moves without a loaded game (not in play mode)
-    if (!result && panelState !== 'play') setPanelState('freeplay');
+    if (!result && !inPlayMode) setPanelState('freeplay');
 
-    // In play mode, have the engine reply — but only if the game isn't over
-    if (panelState === 'play' && !chess.isGameOver()) {
-      enginePlayMove(newFen, newUserIdx);
+    // In play mode: check game over, then have engine reply
+    if (inPlayMode) {
+      if (chess.isGameOver()) {
+        setGameOverReason(getGameOverReason(chess));
+        setPlayPhase('over');
+      } else {
+        enginePlayMove(newFen, newUserIdx, playSkillRef.current);
+      }
     }
 
     return true;
   }
 
-  async function enginePlayMove(fenAfterUser: string, userMoveIdx: number) {
+  async function enginePlayMove(fenAfterUser: string, userMoveIdx: number, skillLevel: number) {
     setPlayThinking(true);
     try {
       const res  = await fetch(`${API}/api/analysis/best-move`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ fen: fenAfterUser, depth: 15 }),
+        body:    JSON.stringify({ fen: fenAfterUser, skill_level: skillLevel }),
       });
       const data = await res.json();
       if (!data.move) return; // game already over
@@ -347,6 +388,12 @@ export default function Home() {
       });
       setExploreIdx(userMoveIdx + 1);
       setTimeout(() => setAnimatePieces(false), 200);
+      // Check if engine's move ended the game
+      const engineChess = new Chess(data.fen);
+      if (engineChess.isGameOver()) {
+        setGameOverReason(getGameOverReason(engineChess));
+        setPlayPhase('over');
+      }
     } catch (e) {
       console.error('Engine move failed:', e);
     } finally {
@@ -419,6 +466,91 @@ export default function Home() {
       setPanelState('paste');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Play vs engine helpers
+  // ---------------------------------------------------------------------------
+  function buildPlayPgn(): string {
+    const frames = exploreHistory;
+    if (frames.length === 0) return '';
+    const white = playColor === 'white' ? 'You' : 'Engine';
+    const black = playColor === 'black' ? 'You' : 'Engine';
+    let pgnStr = `[White "${white}"]\n[Black "${black}"]\n\n`;
+    frames.forEach((frame, i) => {
+      if (i % 2 === 0) pgnStr += `${Math.floor(i / 2) + 1}. `;
+      pgnStr += frame.san + ' ';
+    });
+    return pgnStr.trim();
+  }
+
+  function startPlayGame() {
+    exitExplore();
+    setGameOverReason(null);
+    setPlayOpening(null);
+    setPlayPhase('playing');
+    const skill = playSkillRef.current;
+    if (playColor === 'black') {
+      setFlipped(true);
+      enginePlayMove('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', -1, skill);
+    } else {
+      setFlipped(false);
+    }
+  }
+
+  function handleNewGame() {
+    exitExplore();
+    setGameOverReason(null);
+    setPlayOpening(null);
+    setPlayPhase('setup');
+  }
+
+  async function handlePlayReview() {
+    const playPgn = buildPlayPgn();
+    if (!playPgn) return;
+    setPlayPhase('setup');
+    exitExplore();
+    setPlayOpening(null);
+    setPgn(playPgn);
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setSelectedPly(null);
+    setPanelState('analysis');
+    try {
+      const res = await fetch(`${API}/api/analysis/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pgn: playPgn }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail ?? 'Analysis failed');
+      }
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'progress') setAnalysisProgress({ analyzed: event.analyzed, total: event.total });
+          else if (event.type === 'complete') { setResult(event.result); }
+          else if (event.type === 'error') throw new Error(event.detail ?? 'Analysis failed');
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
+      setPanelState('paste');
+    } finally {
+      setLoading(false);
+      setAnalysisProgress(null);
     }
   }
 
@@ -704,8 +836,8 @@ export default function Home() {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     // For fully-analyzed games: use pre-computed lines, no live engine needed.
-    // For quick-loaded or explore mode: run progressive deepening.
-    if (!isExploring && result && !isQuickLoaded) {
+    // For quick-loaded or explore mode (or play mode): run progressive deepening.
+    if (!isExploring && result && !isQuickLoaded && !inPlayMode) {
       setDeepLines([]);
       setDeepDepth(null);
       return;
@@ -741,7 +873,7 @@ export default function Home() {
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isExploring, isQuickLoaded]);
+  }, [displayFen, isExploring, isQuickLoaded, panelState]);
 
   // Eval bar value — two separate effects so displayEval changes in play mode
   // never cancel or trigger the depth-based timer.
@@ -814,10 +946,10 @@ export default function Home() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex flex-col md:flex-row min-h-screen bg-black text-white">
 
-      {/* ── Sidebar ── */}
-      <div className="sticky top-0 h-screen w-52 shrink-0 flex flex-col border-r border-zinc-800 bg-black z-20">
+      {/* ── Sidebar (desktop only) ── */}
+      <div className="hidden md:flex sticky top-0 h-screen w-52 shrink-0 flex-col border-r border-zinc-800 bg-black z-20">
         {/* Branding */}
         <div className="flex items-center justify-center gap-2.5 px-5 border-b border-zinc-800" style={{ height: 48 }}>
           <span className="text-white font-bold text-base tracking-tight">mic7aelr<span className="text-white">/</span>chess</span>
@@ -851,12 +983,23 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── Library panel (slides in next to sidebar) ── */}
+      {/* ── Library panel (slides in next to sidebar on desktop; full-screen overlay on mobile) ── */}
       <div
-        className="sticky top-0 h-screen shrink-0 flex flex-col border-r border-zinc-800 bg-[#0e0e0e] overflow-hidden transition-all duration-200"
-        style={{ width: libraryOpen ? 256 : 0 }}
+        className={`top-0 h-screen shrink-0 flex flex-col border-r border-zinc-800 bg-[#0e0e0e] overflow-hidden transition-all duration-200 z-50 ${
+          libraryOpen
+            ? 'fixed inset-0 md:sticky md:inset-auto w-full md:w-64'
+            : 'hidden md:flex md:sticky'
+        }`}
+        style={libraryOpen ? {} : { width: 0 }}
       >
-        <div style={{ width: 256 }} className="h-full">
+        {/* Mobile close button */}
+        {libraryOpen && (
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 md:hidden shrink-0">
+            <span className="text-sm font-semibold text-zinc-300">Library</span>
+            <button onClick={() => setLibraryOpen(false)} className="text-zinc-500 hover:text-white transition-colors cursor-pointer text-lg leading-none">✕</button>
+          </div>
+        )}
+        <div className="w-full md:w-64 h-full min-h-0">
           <LibraryPanel
             onLoad={handleLoadFromLibrary}
             onRerun={handleRerunFromLibrary}
@@ -867,13 +1010,13 @@ export default function Home() {
 
       {/* ── Repertoire: full-width panel, replaces board + right panel ── */}
       {panelState === 'repertoire' && (
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="flex-1 flex flex-col md:h-screen overflow-hidden pb-14 md:pb-0">
           <RepertoirePanel onBack={() => setPanelState('menu')} />
         </div>
       )}
 
       {/* ── Left column: board ── */}
-      <div className={`sticky top-0 h-screen flex-1 shrink-0 flex flex-col relative ${panelState !== 'play' ? 'border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
+      <div className={`flex flex-col relative w-full md:flex-1 md:shrink-0 md:sticky md:top-0 md:h-screen ${panelState !== 'play' ? 'border-b md:border-b-0 md:border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
 
         {/* Board: centred in available space */}
         <div className="flex-1 flex items-center justify-center">
@@ -959,63 +1102,188 @@ export default function Home() {
           </div>
         </div>
 
-        <p className="absolute bottom-3 left-5 text-xs text-zinc-700">
+        <p className="hidden md:block absolute bottom-3 left-5 text-xs text-zinc-700">
           ← → step · drag/click to explore · Esc exit
         </p>
       </div>
 
       {/* ── Play panel ── */}
       {panelState === 'play' && (
-        <div className="w-1/4 sticky top-0 h-screen flex flex-col border-l border-zinc-800 shrink-0">
-          {/* Header — matches analysis nav bar */}
-          <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 shrink-0">
-            <button
-              onClick={() => setShowEvalBar((v) => !v)}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
-            >
-              {showEvalBar ? 'Hide eval' : 'Show eval'}
-            </button>
-            <div className="flex items-center gap-1">
-              <NavBtn onClick={navFirst}   title="First move"><SkipBack size={14} /></NavBtn>
-              <NavBtn onClick={navBack}    title="Previous"><ChevronLeft size={14} /></NavBtn>
-              <NavBtn onClick={navForward} title="Next"><ChevronRight size={14} /></NavBtn>
-              <NavBtn onClick={navLast}    title="Last move"><SkipForward size={14} /></NavBtn>
-            </div>
-          </div>
-          {/* Opening strip */}
-          {playOpening && (
-            <div className="shrink-0 border-b border-zinc-800 px-4 py-2">
-              <p className="text-xs text-zinc-400 truncate">
-                {playOpening.eco && <span className="font-mono font-semibold mr-1.5">{playOpening.eco}</span>}
-                {playOpening.name}
-              </p>
+        <div className="w-full md:w-1/4 md:sticky md:top-0 md:h-screen flex flex-col border-t md:border-t-0 md:border-l border-zinc-800 md:shrink-0 pb-14 md:pb-0">
+          {/* Shared header */}
+          {playPhase === 'setup' && (
+            <div className="flex items-center px-5 border-b border-zinc-800 shrink-0" style={{ height: 48 }}>
+              <span className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Play vs Engine</span>
             </div>
           )}
-          {/* Move list modal + resign */}
-          <div className="flex flex-col flex-1 min-h-0 p-3 gap-3">
-            <div className="flex-1 min-h-0 overflow-y-auto border border-zinc-800 rounded-lg bg-zinc-950/60">
-              <div className="py-2">
-                <FreeplayMoveList
-                  frames={exploreHistory}
-                  currentIdx={exploreIdx}
-                  onSelectIdx={setExploreIdx}
-                />
+          {/* ── SETUP phase ── */}
+          {playPhase === 'setup' && (
+            <div className="flex flex-col flex-1 min-h-0 p-5 gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">Play as</p>
+                <div className="flex gap-2">
+                  {(['white', 'black'] as const).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setPlayColor(c)}
+                      className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                        playColor === c
+                          ? 'bg-white text-black border-white'
+                          : 'text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}
+                    >
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                {(() => {
+                  const LEVELS = [
+                    { label: 'Easy',      elo: '~200',  skill: 0  },
+                    { label: 'Medium',    elo: '~1000', skill: 5  },
+                    { label: 'Hard',      elo: '~1500', skill: 11 },
+                    { label: 'Expert',    elo: '~2000', skill: 16 },
+                    { label: 'Stockfish', elo: 'max',   skill: 20 },
+                  ] as const;
+                  const idx = LEVELS.findIndex(l => l.skill === playSkill);
+                  const active = LEVELS[idx] ?? LEVELS[1];
+                  return (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Difficulty</p>
+                        <p className="text-xs font-semibold text-white">
+                          {active.label}
+                          <span className="text-zinc-500 font-normal ml-1.5">{active.elo}</span>
+                        </p>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={4}
+                        step={1}
+                        value={idx >= 0 ? idx : 1}
+                        onChange={(e) => setPlaySkill(LEVELS[Number(e.target.value)].skill)}
+                        className="w-full accent-white cursor-pointer"
+                      />
+                      <div className="flex justify-between mt-1.5">
+                        {LEVELS.map((l, i) => (
+                          <span key={l.label} className={`text-xs ${i === (idx >= 0 ? idx : 1) ? 'text-white font-semibold' : 'text-zinc-500'}`}>
+                            {l.label}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <button
+                onClick={startPlayGame}
+                className="mt-auto w-full py-2.5 text-sm font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
+              >
+                Start Game
+              </button>
+            </div>
+          )}
+
+          {/* ── PLAYING phase ── */}
+          {playPhase === 'playing' && (<>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
+              <button
+                onClick={() => setShowEvalBar((v) => !v)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+              >
+                {showEvalBar ? 'Hide eval' : 'Show eval'}
+              </button>
+              <div className="flex items-center gap-1">
+                <NavBtn onClick={navFirst}   title="First move"><SkipBack size={14} /></NavBtn>
+                <NavBtn onClick={navBack}    title="Previous"><ChevronLeft size={14} /></NavBtn>
+                <NavBtn onClick={navForward} title="Next"><ChevronRight size={14} /></NavBtn>
+                <NavBtn onClick={navLast}    title="Last move"><SkipForward size={14} /></NavBtn>
               </div>
             </div>
-            {exploreHistory.length > 0 && (
+            {/* Opening strip */}
+            {playOpening && (
+              <div className="shrink-0 border-b border-zinc-800 px-4 py-2">
+                <p className="text-xs text-zinc-400 truncate">
+                  {playOpening.eco && <span className="font-mono font-semibold mr-1.5">{playOpening.eco}</span>}
+                  {playOpening.name}
+                </p>
+              </div>
+            )}
+            {/* Move list + resign */}
+            <div className="flex flex-col flex-1 min-h-0 p-3 gap-3">
+              <div className="flex-1 min-h-0 overflow-y-auto border border-zinc-800 rounded-lg bg-zinc-950/60">
+                <div className="py-2">
+                  <FreeplayMoveList
+                    frames={exploreHistory}
+                    currentIdx={exploreIdx}
+                    onSelectIdx={setExploreIdx}
+                  />
+                </div>
+              </div>
               <button
-                onClick={() => { exitExplore(); setPlayOpening(null); }}
+                onClick={() => { setGameOverReason('You resigned'); setPlayPhase('over'); }}
                 className="w-full py-2 text-xs font-semibold text-red-500 border border-red-900/50 rounded-lg hover:bg-red-950/40 transition-colors cursor-pointer shrink-0"
               >
                 Resign
               </button>
-            )}
-          </div>
+            </div>
+          </>)}
+
+          {/* ── GAME OVER phase ── */}
+          {playPhase === 'over' && (
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Result banner + nav */}
+              <div className="shrink-0 px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-white leading-snug">{gameOverReason}</p>
+                <div className="flex items-center gap-1 shrink-0">
+                  <NavBtn onClick={navFirst}   title="First move"><SkipBack size={14} /></NavBtn>
+                  <NavBtn onClick={navBack}    title="Previous"><ChevronLeft size={14} /></NavBtn>
+                  <NavBtn onClick={navForward} title="Next"><ChevronRight size={14} /></NavBtn>
+                  <NavBtn onClick={navLast}    title="Last move"><SkipForward size={14} /></NavBtn>
+                </div>
+              </div>
+
+              {/* Move list (read-only) */}
+              <div className="flex flex-col flex-1 min-h-0 p-3 gap-3">
+                <div className="flex-1 min-h-0 overflow-y-auto border border-zinc-800 rounded-lg bg-zinc-950/60">
+                  <div className="py-2">
+                    <FreeplayMoveList
+                      frames={exploreHistory}
+                      currentIdx={exploreIdx}
+                      onSelectIdx={setExploreIdx}
+                    />
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={handleNewGame}
+                    className="flex-1 py-2 text-xs text-zinc-400 border border-zinc-700 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    New game
+                  </button>
+                  <button
+                    onClick={handlePlayReview}
+                    disabled={loading || exploreHistory.length === 0}
+                    className="flex-1 py-2 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {loading ? 'Analysing…' : 'Review'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Right column: 25% — 3-state panel ── */}
-      {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
+      {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-full md:w-1/4 flex flex-col md:h-screen border-t md:border-t-0 md:border-l border-zinc-800 pb-14 md:pb-0">
 
         {/* ── Nav bar — shown in analysis mode above engine lines ── */}
         {panelState === 'analysis' && result && (
@@ -1316,6 +1584,25 @@ export default function Home() {
         )}
 
       </div>}
+
+      {/* ── Mobile bottom nav (hidden on md+) ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-black border-t border-zinc-800 flex items-stretch z-40">
+        {([
+          { label: 'Play',       icon: <Swords size={19} />,     active: panelState === 'play' && !libraryOpen,         onClick: () => { setLibraryOpen(false); setPanelState('play'); } },
+          { label: 'Analysis',   icon: <BookOpen size={19} />,   active: (panelState === 'paste' || panelState === 'analysis') && !libraryOpen, onClick: () => { setLibraryOpen(false); setPanelState(result ? 'analysis' : 'paste'); } },
+          { label: 'Library',    icon: <Library size={19} />,    active: libraryOpen,                                   onClick: () => { setLibraryOpen((o) => !o); if (!libraryOpen) setPanelState('menu'); } },
+          { label: 'Repertoire', icon: <ScrollText size={19} />, active: panelState === 'repertoire' && !libraryOpen,   onClick: () => { setLibraryOpen(false); setPanelState('repertoire'); } },
+        ] as const).map(({ label, icon, active, onClick }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer ${active ? 'text-white' : 'text-zinc-600'}`}
+          >
+            {icon}
+            <span className="text-[10px] font-medium">{label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
