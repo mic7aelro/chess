@@ -68,10 +68,17 @@ function useBoardSize(panelOpen: boolean) {
   const [size, setSize] = useState(600);
   useEffect(() => {
     function calc() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (w < 768) {
+        // Mobile: board fills viewport width, capped at ~55% of viewport height
+        setSize(Math.floor(Math.min(w - 8, h * 0.54)));
+        return;
+      }
       const extra  = panelOpen ? LIBRARY_W : 0;
-      const rightW = window.innerWidth * 0.25;
-      const fromWidth  = window.innerWidth - SIDEBAR_W - extra - rightW - 80;
-      const fromHeight = window.innerHeight - 160;
+      const rightW = w * 0.25;
+      const fromWidth  = w - SIDEBAR_W - extra - rightW - 80;
+      const fromHeight = h - 160;
       setSize(Math.floor(Math.min(fromWidth, fromHeight)));
     }
     calc();
@@ -939,10 +946,10 @@ export default function Home() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex flex-col md:flex-row min-h-screen bg-black text-white">
 
-      {/* ── Sidebar ── */}
-      <div className="sticky top-0 h-screen w-52 shrink-0 flex flex-col border-r border-zinc-800 bg-black z-20">
+      {/* ── Sidebar (desktop only) ── */}
+      <div className="hidden md:flex sticky top-0 h-screen w-52 shrink-0 flex-col border-r border-zinc-800 bg-black z-20">
         {/* Branding */}
         <div className="flex items-center justify-center gap-2.5 px-5 border-b border-zinc-800" style={{ height: 48 }}>
           <span className="text-white font-bold text-base tracking-tight">mic7aelr<span className="text-white">/</span>chess</span>
@@ -976,12 +983,23 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── Library panel (slides in next to sidebar) ── */}
+      {/* ── Library panel (slides in next to sidebar on desktop; full-screen overlay on mobile) ── */}
       <div
-        className="sticky top-0 h-screen shrink-0 flex flex-col border-r border-zinc-800 bg-[#0e0e0e] overflow-hidden transition-all duration-200"
-        style={{ width: libraryOpen ? 256 : 0 }}
+        className={`top-0 h-screen shrink-0 flex flex-col border-r border-zinc-800 bg-[#0e0e0e] overflow-hidden transition-all duration-200 z-50 ${
+          libraryOpen
+            ? 'fixed inset-0 md:sticky md:inset-auto w-full md:w-64'
+            : 'hidden md:flex md:sticky'
+        }`}
+        style={libraryOpen ? {} : { width: 0 }}
       >
-        <div style={{ width: 256 }} className="h-full">
+        {/* Mobile close button */}
+        {libraryOpen && (
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 md:hidden shrink-0">
+            <span className="text-sm font-semibold text-zinc-300">Library</span>
+            <button onClick={() => setLibraryOpen(false)} className="text-zinc-500 hover:text-white transition-colors cursor-pointer text-lg leading-none">✕</button>
+          </div>
+        )}
+        <div className="w-full md:w-64 h-full min-h-0">
           <LibraryPanel
             onLoad={handleLoadFromLibrary}
             onRerun={handleRerunFromLibrary}
@@ -992,13 +1010,13 @@ export default function Home() {
 
       {/* ── Repertoire: full-width panel, replaces board + right panel ── */}
       {panelState === 'repertoire' && (
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="flex-1 flex flex-col md:h-screen overflow-hidden pb-14 md:pb-0">
           <RepertoirePanel onBack={() => setPanelState('menu')} />
         </div>
       )}
 
       {/* ── Left column: board ── */}
-      <div className={`sticky top-0 h-screen flex-1 shrink-0 flex flex-col relative ${panelState !== 'play' ? 'border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
+      <div className={`flex flex-col relative w-full md:flex-1 md:shrink-0 md:sticky md:top-0 md:h-screen ${panelState !== 'play' ? 'border-b md:border-b-0 md:border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
 
         {/* Board: centred in available space */}
         <div className="flex-1 flex items-center justify-center">
@@ -1084,14 +1102,14 @@ export default function Home() {
           </div>
         </div>
 
-        <p className="absolute bottom-3 left-5 text-xs text-zinc-700">
+        <p className="hidden md:block absolute bottom-3 left-5 text-xs text-zinc-700">
           ← → step · drag/click to explore · Esc exit
         </p>
       </div>
 
       {/* ── Play panel ── */}
       {panelState === 'play' && (
-        <div className="w-1/4 sticky top-0 h-screen flex flex-col border-l border-zinc-800 shrink-0">
+        <div className="w-full md:w-1/4 md:sticky md:top-0 md:h-screen flex flex-col border-t md:border-t-0 md:border-l border-zinc-800 md:shrink-0 pb-14 md:pb-0">
           {/* Shared header */}
           {playPhase === 'setup' && (
             <div className="flex items-center px-5 border-b border-zinc-800 shrink-0" style={{ height: 48 }}>
@@ -1265,7 +1283,7 @@ export default function Home() {
       )}
 
       {/* ── Right column: 25% — 3-state panel ── */}
-      {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-1/4 flex flex-col h-screen border-l border-zinc-800">
+      {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-full md:w-1/4 flex flex-col md:h-screen border-t md:border-t-0 md:border-l border-zinc-800 pb-14 md:pb-0">
 
         {/* ── Nav bar — shown in analysis mode above engine lines ── */}
         {panelState === 'analysis' && result && (
@@ -1566,6 +1584,25 @@ export default function Home() {
         )}
 
       </div>}
+
+      {/* ── Mobile bottom nav (hidden on md+) ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-black border-t border-zinc-800 flex items-stretch z-40">
+        {([
+          { label: 'Play',       icon: <Swords size={19} />,     active: panelState === 'play' && !libraryOpen,         onClick: () => { setLibraryOpen(false); setPanelState('play'); } },
+          { label: 'Analysis',   icon: <BookOpen size={19} />,   active: (panelState === 'paste' || panelState === 'analysis') && !libraryOpen, onClick: () => { setLibraryOpen(false); setPanelState(result ? 'analysis' : 'paste'); } },
+          { label: 'Library',    icon: <Library size={19} />,    active: libraryOpen,                                   onClick: () => { setLibraryOpen((o) => !o); if (!libraryOpen) setPanelState('menu'); } },
+          { label: 'Repertoire', icon: <ScrollText size={19} />, active: panelState === 'repertoire' && !libraryOpen,   onClick: () => { setLibraryOpen(false); setPanelState('repertoire'); } },
+        ] as const).map(({ label, icon, active, onClick }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer ${active ? 'text-white' : 'text-zinc-600'}`}
+          >
+            {icon}
+            <span className="text-[10px] font-medium">{label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
