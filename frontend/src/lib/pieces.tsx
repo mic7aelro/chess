@@ -3,6 +3,40 @@
  * This prevents iOS Safari from altering inline SVG fill colors in dark mode.
  */
 
+/**
+ * Checkerboard SVG as a data URI — used as boardStyle.backgroundImage.
+ * iOS Safari cannot recolor image content, so this bypasses all dark-mode
+ * color adjustments on board squares.
+ *
+ * Grid layout (col, row) starting from top-left:
+ *   White orientation: (0,0) = a8 = LIGHT square
+ *   Black orientation: (0,0) = h1 = LIGHT square
+ * Both orientations have a light square at top-left, so one SVG works for both.
+ * Dark squares: positions where (col + row) % 2 === 1.
+ */
+const DARK_SQ = '#769656';
+const LIGHT_SQ = '#eeeed2';
+
+function buildCheckerboardSvg(): string {
+  const darkRects: string[] = [];
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      if ((col + row) % 2 === 1) {
+        darkRects.push(`<rect x="${col}" y="${row}" width="1" height="1" fill="${DARK_SQ}"/>`);
+      }
+    }
+  }
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">` +
+    `<rect width="8" height="8" fill="${LIGHT_SQ}"/>` +
+    darkRects.join('') +
+    `</svg>`
+  );
+}
+
+export const boardBackgroundUri =
+  `url("data:image/svg+xml,${encodeURIComponent(buildCheckerboardSvg())}")`;
+
 const svgs: Record<string, string> = {
   wP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><path d="M 22.5,9 C 19.92,9 17.82,11.1 17.82,13.68 C 17.82,16.26 19.92,18.36 22.5,18.36 C 25.08,18.36 27.18,16.26 27.18,13.68 C 27.18,11.1 25.08,9 22.5,9 z M 12.75,31.5 C 12.75,31.5 14.4,33.75 22.5,33.75 C 30.6,33.75 32.25,31.5 32.25,31.5 L 32.25,30 L 12.75,30 L 12.75,31.5 z M 9,36 C 10.5,36 25.5,37.5 36,36 L 36,34.5 C 36,34.5 29.47,31.32 22.5,31.32 C 15.53,31.32 9,34.5 9,34.5 L 9,36 z" style="fill:#ffffff;stroke:#000000;stroke-width:1.5;stroke-linecap:round"/></svg>`,
 

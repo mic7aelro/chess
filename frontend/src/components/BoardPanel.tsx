@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { Chess, type Square, type Move } from 'chess.js';
 import { EvalBar } from './EvalBar';
-import { customPieces } from '../lib/pieces';
+import { customPieces, boardBackgroundUri } from '../lib/pieces';
 
 const Chessboard = dynamic(
   () => import('react-chessboard').then((m) => m.Chessboard),
@@ -137,18 +137,16 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
             position: normaliseFen(fen),
             boardOrientation: orientation,
             squareStyles,
-            // squareStyle applies to every square div — this is the level iOS Safari respects
-            squareStyle: { colorScheme: 'light' } as React.CSSProperties,
-            darkSquareStyle: {
-              backgroundColor: '#769656',
-              // backgroundImage overrides backgroundColor and is immune to dark-mode color adjustment
-              backgroundImage: 'linear-gradient(#769656 0%, #769656 100%)',
-            },
-            lightSquareStyle: {
-              backgroundColor: '#eeeed2',
-              backgroundImage: 'linear-gradient(#eeeed2 0%, #eeeed2 100%)',
-            },
-            boardStyle: { borderRadius: '4px', colorScheme: 'light' } as React.CSSProperties,
+            // Squares are transparent — all color comes from the SVG board background image
+            darkSquareStyle: { backgroundColor: 'transparent' },
+            lightSquareStyle: { backgroundColor: 'transparent' },
+            // The board background is a data URI SVG checkerboard — iOS Safari cannot
+            // recolor image content, so dark-mode adjustments cannot affect square colors
+            boardStyle: {
+              borderRadius: '4px',
+              backgroundImage: boardBackgroundUri,
+              backgroundSize: '100% 100%',
+            } as React.CSSProperties,
             alphaNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             numericNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             darkSquareNotationStyle: { color: '#eeeed2' },
