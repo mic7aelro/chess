@@ -1,5 +1,7 @@
 'use client';
 
+import { evalBarWhiteUri, evalBarBlackUri } from '../lib/pieces';
+
 interface Props {
   /** Centipawns from White's perspective. ±10000 = mate. */
   eval: number;
@@ -70,8 +72,26 @@ export function EvalBar({ eval: cp, height = 400, orientation = 'white' }: Props
 
   const labelInWhite = whiteWinning;
 
-  const BLACK_BG = '#1a1a1a';
-  const WHITE_BG = '#d4d4d4';
+  // Color swatches rendered as <img> — iOS Safari dark-mode rewrites CSS
+  // background-color even with color-scheme:only light, but leaves <img>
+  // content alone.
+  const topSrc    = topIsBlack ? evalBarBlackUri : evalBarWhiteUri;
+  const bottomSrc = topIsBlack ? evalBarWhiteUri : evalBarBlackUri;
+
+  const sectionStyle = (pct: number): React.CSSProperties => ({
+    height: `${pct}%`,
+    transition: 'height 600ms ease-in-out',
+    position: 'relative',
+    overflow: 'hidden',
+  });
+  const imgStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    display: 'block',
+    pointerEvents: 'none',
+  };
 
   return (
     <div
@@ -79,23 +99,13 @@ export function EvalBar({ eval: cp, height = 400, orientation = 'white' }: Props
       style={{ height, colorScheme: 'light' } as React.CSSProperties}
     >
       {/* Top section */}
-      <div
-        style={{
-          height: `${topPct}%`,
-          transition: 'height 600ms ease-in-out',
-          backgroundColor: topIsBlack ? BLACK_BG : WHITE_BG,
-          backgroundImage: `linear-gradient(${topIsBlack ? BLACK_BG : WHITE_BG} 0%, ${topIsBlack ? BLACK_BG : WHITE_BG} 100%)`,
-        }}
-      />
+      <div style={sectionStyle(topPct)}>
+        <img src={topSrc} alt="" aria-hidden draggable={false} style={imgStyle} />
+      </div>
       {/* Bottom section */}
-      <div
-        style={{
-          height: `${bottomPct}%`,
-          transition: 'height 600ms ease-in-out',
-          backgroundColor: topIsBlack ? WHITE_BG : BLACK_BG,
-          backgroundImage: `linear-gradient(${topIsBlack ? WHITE_BG : BLACK_BG} 0%, ${topIsBlack ? WHITE_BG : BLACK_BG} 100%)`,
-        }}
-      />
+      <div style={sectionStyle(bottomPct)}>
+        <img src={bottomSrc} alt="" aria-hidden draggable={false} style={imgStyle} />
+      </div>
 
       {/* Floating label */}
       <div

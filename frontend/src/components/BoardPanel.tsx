@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { Chess, type Square, type Move } from 'chess.js';
 import { EvalBar } from './EvalBar';
-import { customPieces } from '../lib/pieces';
+import { customPieces, boardBackgroundUri } from '../lib/pieces';
 
 const Chessboard = dynamic(
   () => import('react-chessboard').then((m) => m.Chessboard),
@@ -113,6 +113,24 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
     <div className="flex gap-2 items-start shrink-0">
       {showEvalBar && <EvalBar eval={evalCp} height={BOARD_SIZE} orientation={orientation} />}
       <div style={{ width: BOARD_SIZE, height: BOARD_SIZE, colorScheme: 'light' }} className="relative">
+        {/* Checkerboard rendered as <img>, not CSS background-image — iOS Safari
+            applies dark-mode color adjustments to background-image SVGs but
+            leaves <img> content alone. */}
+        <img
+          src={boardBackgroundUri}
+          alt=""
+          draggable={false}
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
         {badge && lastMove && (() => {
           const sq = lastMove.to;
           const fileIdx = sq.charCodeAt(0) - 97;       // a=0 … h=7
@@ -137,18 +155,14 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
             position: normaliseFen(fen),
             boardOrientation: orientation,
             squareStyles,
-            // squareStyle applies to every square div — this is the level iOS Safari respects
-            squareStyle: { colorScheme: 'light' } as React.CSSProperties,
-            darkSquareStyle: {
-              backgroundColor: '#769656',
-              // backgroundImage overrides backgroundColor and is immune to dark-mode color adjustment
-              backgroundImage: 'linear-gradient(#769656 0%, #769656 100%)',
-            },
-            lightSquareStyle: {
-              backgroundColor: '#eeeed2',
-              backgroundImage: 'linear-gradient(#eeeed2 0%, #eeeed2 100%)',
-            },
-            boardStyle: { borderRadius: '4px', colorScheme: 'light' } as React.CSSProperties,
+            // Squares are transparent — all color comes from the <img> behind the board
+            darkSquareStyle: { backgroundColor: 'transparent' },
+            lightSquareStyle: { backgroundColor: 'transparent' },
+            boardStyle: {
+              borderRadius: '4px',
+              position: 'relative',
+              zIndex: 1,
+            } as React.CSSProperties,
             alphaNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             numericNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             darkSquareNotationStyle: { color: '#eeeed2' },
