@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { Chess, type Square, type Move } from 'chess.js';
 import { EvalBar } from './EvalBar';
+import { customPieces } from '../lib/pieces';
 
 const Chessboard = dynamic(
   () => import('react-chessboard').then((m) => m.Chessboard),
@@ -143,6 +144,7 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
             numericNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             darkSquareNotationStyle: { color: '#eeeed2' },
             lightSquareNotationStyle: { color: '#769656' },
+            pieces: customPieces,
             allowDragging: true,
             animationDurationInMs: animatePieces ? 150 : 0,
             onSquareClick: handleSquareClick,
