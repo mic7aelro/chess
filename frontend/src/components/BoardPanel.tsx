@@ -112,7 +112,7 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
   return (
     <div className="flex gap-2 items-start shrink-0">
       {showEvalBar && <EvalBar eval={evalCp} height={BOARD_SIZE} orientation={orientation} />}
-      <div style={{ width: BOARD_SIZE, height: BOARD_SIZE }} className="relative">
+      <div style={{ width: BOARD_SIZE, height: BOARD_SIZE, colorScheme: 'light' }} className="relative">
         {badge && lastMove && (() => {
           const sq = lastMove.to;
           const fileIdx = sq.charCodeAt(0) - 97;       // a=0 … h=7
