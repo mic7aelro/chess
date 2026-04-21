@@ -137,9 +137,18 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
             position: normaliseFen(fen),
             boardOrientation: orientation,
             squareStyles,
-            darkSquareStyle: { backgroundColor: '#769656' },
-            lightSquareStyle: { backgroundColor: '#eeeed2' },
-            boardStyle: { borderRadius: '4px' },
+            // squareStyle applies to every square div — this is the level iOS Safari respects
+            squareStyle: { colorScheme: 'light' } as React.CSSProperties,
+            darkSquareStyle: {
+              backgroundColor: '#769656',
+              // backgroundImage overrides backgroundColor and is immune to dark-mode color adjustment
+              backgroundImage: 'linear-gradient(#769656 0%, #769656 100%)',
+            },
+            lightSquareStyle: {
+              backgroundColor: '#eeeed2',
+              backgroundImage: 'linear-gradient(#eeeed2 0%, #eeeed2 100%)',
+            },
+            boardStyle: { borderRadius: '4px', colorScheme: 'light' } as React.CSSProperties,
             alphaNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             numericNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             darkSquareNotationStyle: { color: '#eeeed2' },
