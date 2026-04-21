@@ -34,11 +34,24 @@ function buildCheckerboardSvg(): string {
   );
 }
 
+// Plain data URI — used as an <img src>. Safari applies dark-mode adjustments
+// to CSS background-image SVGs but leaves <img> content alone, so the board
+// must be rendered as an <img> element, not a CSS background-image.
 export const boardBackgroundUri =
-  `url("data:image/svg+xml,${encodeURIComponent(buildCheckerboardSvg())}")`;
+  `data:image/svg+xml,${encodeURIComponent(buildCheckerboardSvg())}`;
+
+// Solid-color swatches for the eval bar, rendered as <img> to bypass Safari
+// dark-mode color adjustments on CSS background-color.
+const buildSwatch = (fill: string) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" preserveAspectRatio="none"><rect width="1" height="1" fill="${fill}"/></svg>`
+  )}`;
+
+export const evalBarWhiteUri = buildSwatch('#d4d4d4');
+export const evalBarBlackUri = buildSwatch('#1a1a1a');
 
 const svgs: Record<string, string> = {
-  wP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><path d="M 22.5,9 C 19.92,9 17.82,11.1 17.82,13.68 C 17.82,16.26 19.92,18.36 22.5,18.36 C 25.08,18.36 27.18,16.26 27.18,13.68 C 27.18,11.1 25.08,9 22.5,9 z M 12.75,31.5 C 12.75,31.5 14.4,33.75 22.5,33.75 C 30.6,33.75 32.25,31.5 32.25,31.5 L 32.25,30 L 12.75,30 L 12.75,31.5 z M 9,36 C 10.5,36 25.5,37.5 36,36 L 36,34.5 C 36,34.5 29.47,31.32 22.5,31.32 C 15.53,31.32 9,34.5 9,34.5 L 9,36 z" style="fill:#ffffff;stroke:#000000;stroke-width:1.5;stroke-linecap:round"/></svg>`,
+  wP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><path d="m 22.5,9 c -2.21,0 -4,1.79 -4,4 0,0.89 0.29,1.71 0.78,2.38 C 17.33,16.5 16,18.59 16,21 c 0,2.03 0.94,3.84 2.41,5.03 C 15.41,27.09 11,31.58 11,39.5 H 34 C 34,31.58 29.59,27.09 26.59,26.03 28.06,24.84 29,23.03 29,21 29,18.59 27.67,16.5 25.72,15.38 26.21,14.71 26.5,13.89 26.5,13 c 0,-2.21 -1.79,-4 -4,-4 z" style="fill:#ffffff;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:miter"/></svg>`,
 
   wR: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><g style="fill:#ffffff;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M 9,39 L 36,39 L 36,36 L 9,36 L 9,39 z"/><path d="M 12.5,32 L 14,29.5 L 31,29.5 L 32.5,32 L 12.5,32 z"/><path d="M 12,36 L 12,32 L 33,32 L 33,36 L 12,36 z"/><path d="M 14,29.5 L 14,16.5 L 31,16.5 L 31,29.5 L 14,29.5 z"/><path d="M 14,16.5 L 11,14 L 34,14 L 31,16.5 L 14,16.5 z"/><path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14 L 11,14 z"/><path d="M 12,35.5 L 33,35.5 L 33,35.5" style="fill:none;stroke:#000000"/><path d="M 13,31.5 L 32,31.5" style="fill:none;stroke:#000000"/><path d="M 14,29.5 L 31,29.5" style="fill:none;stroke:#000000"/><path d="M 14,16.5 L 31,16.5" style="fill:none;stroke:#000000"/><path d="M 11,14 L 34,14" style="fill:none;stroke:#000000"/></g></svg>`,
 
@@ -50,7 +63,7 @@ const svgs: Record<string, string> = {
 
   wK: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><g style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"><path d="M 22.5,11.63 L 22.5,6" style="fill:none;stroke:#000000;stroke-linejoin:miter"/><path d="M 20,8 L 25,8" style="fill:none;stroke:#000000;stroke-linejoin:miter"/><path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" style="fill:#ffffff;stroke:#000000;stroke-linecap:butt;stroke-linejoin:miter"/><path d="M 12.5,37 C 18,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 20,16 10.5,13 6.5,19.5 C 3.5,25.5 12.5,30 12.5,30 L 12.5,37" style="fill:#ffffff;stroke:#000000"/><path d="M 12.5,30 C 18,27 27,27 32.5,30" style="fill:none;stroke:#000000"/><path d="M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5" style="fill:none;stroke:#000000"/><path d="M 12.5,37 C 18,34 27,34 32.5,37" style="fill:none;stroke:#000000"/></g></svg>`,
 
-  bP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><path d="M 22.5,9 C 19.92,9 17.82,11.1 17.82,13.68 C 17.82,16.26 19.92,18.36 22.5,18.36 C 25.08,18.36 27.18,16.26 27.18,13.68 C 27.18,11.1 25.08,9 22.5,9 z M 12.75,31.5 C 12.75,31.5 14.4,33.75 22.5,33.75 C 30.6,33.75 32.25,31.5 32.25,31.5 L 32.25,30 L 12.75,30 L 12.75,31.5 z M 9,36 C 10.5,36 25.5,37.5 36,36 L 36,34.5 C 36,34.5 29.47,31.32 22.5,31.32 C 15.53,31.32 9,34.5 9,34.5 L 9,36 z" style="fill:#000000;stroke:#000000;stroke-width:1.5;stroke-linecap:round"/></svg>`,
+  bP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><path d="m 22.5,9 c -2.21,0 -4,1.79 -4,4 0,0.89 0.29,1.71 0.78,2.38 C 17.33,16.5 16,18.59 16,21 c 0,2.03 0.94,3.84 2.41,5.03 C 15.41,27.09 11,31.58 11,39.5 H 34 C 34,31.58 29.59,27.09 26.59,26.03 28.06,24.84 29,23.03 29,21 29,18.59 27.67,16.5 25.72,15.38 26.21,14.71 26.5,13.89 26.5,13 c 0,-2.21 -1.79,-4 -4,-4 z" style="fill:#000000;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:miter"/></svg>`,
 
   bR: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%"><g style="fill:#000000;stroke:#000000;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M 9,39 L 36,39 L 36,36 L 9,36 L 9,39 z"/><path d="M 12.5,32 L 14,29.5 L 31,29.5 L 32.5,32 L 12.5,32 z"/><path d="M 12,36 L 12,32 L 33,32 L 33,36 L 12,36 z"/><path d="M 14,29.5 L 14,16.5 L 31,16.5 L 31,29.5 L 14,29.5 z"/><path d="M 14,16.5 L 11,14 L 34,14 L 31,16.5 L 14,16.5 z"/><path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14 L 11,14 z"/><path d="M 12,35.5 L 33,35.5" style="fill:none;stroke:#ffffff"/><path d="M 13,31.5 L 32,31.5" style="fill:none;stroke:#ffffff"/><path d="M 14,29.5 L 31,29.5" style="fill:none;stroke:#ffffff"/><path d="M 14,16.5 L 31,16.5" style="fill:none;stroke:#ffffff"/><path d="M 11,14 L 34,14" style="fill:none;stroke:#ffffff"/></g></svg>`,
 

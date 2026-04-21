@@ -113,6 +113,24 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
     <div className="flex gap-2 items-start shrink-0">
       {showEvalBar && <EvalBar eval={evalCp} height={BOARD_SIZE} orientation={orientation} />}
       <div style={{ width: BOARD_SIZE, height: BOARD_SIZE, colorScheme: 'light' }} className="relative">
+        {/* Checkerboard rendered as <img>, not CSS background-image — iOS Safari
+            applies dark-mode color adjustments to background-image SVGs but
+            leaves <img> content alone. */}
+        <img
+          src={boardBackgroundUri}
+          alt=""
+          draggable={false}
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
         {badge && lastMove && (() => {
           const sq = lastMove.to;
           const fileIdx = sq.charCodeAt(0) - 97;       // a=0 … h=7
@@ -137,15 +155,13 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
             position: normaliseFen(fen),
             boardOrientation: orientation,
             squareStyles,
-            // Squares are transparent — all color comes from the SVG board background image
+            // Squares are transparent — all color comes from the <img> behind the board
             darkSquareStyle: { backgroundColor: 'transparent' },
             lightSquareStyle: { backgroundColor: 'transparent' },
-            // The board background is a data URI SVG checkerboard — iOS Safari cannot
-            // recolor image content, so dark-mode adjustments cannot affect square colors
             boardStyle: {
               borderRadius: '4px',
-              backgroundImage: boardBackgroundUri,
-              backgroundSize: '100% 100%',
+              position: 'relative',
+              zIndex: 1,
             } as React.CSSProperties,
             alphaNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
             numericNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
