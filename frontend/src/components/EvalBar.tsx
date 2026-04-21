@@ -70,20 +70,31 @@ export function EvalBar({ eval: cp, height = 400, orientation = 'white' }: Props
 
   const labelInWhite = whiteWinning;
 
+  const BLACK_BG = '#1a1a1a';
+  const WHITE_BG = '#d4d4d4';
+
   return (
     <div
       className="relative flex flex-col w-7 rounded overflow-hidden select-none shrink-0"
-      style={{ height }}
+      style={{ height, colorScheme: 'light' } as React.CSSProperties}
     >
       {/* Top section */}
       <div
-        className={topIsBlack ? 'bg-[#1a1a1a]' : 'bg-zinc-200'}
-        style={{ height: `${topPct}%`, transition: 'height 600ms ease-in-out' }}
+        style={{
+          height: `${topPct}%`,
+          transition: 'height 600ms ease-in-out',
+          backgroundColor: topIsBlack ? BLACK_BG : WHITE_BG,
+          backgroundImage: `linear-gradient(${topIsBlack ? BLACK_BG : WHITE_BG} 0%, ${topIsBlack ? BLACK_BG : WHITE_BG} 100%)`,
+        }}
       />
       {/* Bottom section */}
       <div
-        className={topIsBlack ? 'bg-zinc-200' : 'bg-[#1a1a1a]'}
-        style={{ height: `${bottomPct}%`, transition: 'height 600ms ease-in-out' }}
+        style={{
+          height: `${bottomPct}%`,
+          transition: 'height 600ms ease-in-out',
+          backgroundColor: topIsBlack ? WHITE_BG : BLACK_BG,
+          backgroundImage: `linear-gradient(${topIsBlack ? WHITE_BG : BLACK_BG} 0%, ${topIsBlack ? WHITE_BG : BLACK_BG} 100%)`,
+        }}
       />
 
       {/* Floating label */}
