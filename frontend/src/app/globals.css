@@ -3,6 +3,9 @@
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;
+  /* "only light" tells iOS Safari: never apply dark-mode color adjustments,
+     regardless of user OS setting. All colors are explicit in this app. */
+  color-scheme: only light;
 }
 
 @theme inline {
