@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen, Check, Zap, Star, Award, TrendingUp, AlertCircle, AlertTriangle, MinusCircle, XCircle } from 'lucide-react';
+import { ClassificationIcon, CLASSIFICATION_COLOR } from './ClassificationIcon';
 import type { Classification, MoveEval, PlayerStats } from '@/types';
 
 interface Props {
@@ -22,29 +22,17 @@ function countClassifications(moves: MoveEval[], side: 'white' | 'black'): Count
   return counts;
 }
 
-type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string; style?: React.CSSProperties }>;
-
-const ROWS: {
-  key: Classification;
-  label: string;
-  Icon: IconComponent;
-  iconSize?: number;
-  strokeWidth?: number;
-  iconNudge?: string;
-  symbolClass: string;
-  badgeBg: string;
-  badgeText: string;
-}[] = [
-  { key: 'brilliant',  label: 'Brilliant',  Icon: Zap,          iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#1fada8]', badgeBg: '#1fada8', badgeText: '#fff' },
-  { key: 'great',      label: 'Great',      Icon: Award,        iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#5c8fff]', badgeBg: '#5c8fff', badgeText: '#fff' },
-  { key: 'book',       label: 'Book',       Icon: BookOpen,     iconSize: 16, strokeWidth: 1.5, symbolClass: 'text-[#a0784a]', badgeBg: '#7c4e28', badgeText: '#f5dfc0' },
-  { key: 'best',       label: 'Best',       Icon: Star,         iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  { key: 'excellent',  label: 'Excellent',  Icon: TrendingUp,   iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  { key: 'good',       label: 'Good',       Icon: Check,        iconSize: 18, strokeWidth: 3,   symbolClass: 'text-[#96bc4b]', badgeBg: '#96bc4b', badgeText: '#fff' },
-  { key: 'inaccuracy', label: 'Inaccuracy', Icon: AlertCircle,  iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#f4bf00]', badgeBg: '#f4bf00', badgeText: '#fff' },
-  { key: 'mistake',    label: 'Mistake',    Icon: AlertTriangle, iconSize: 18, strokeWidth: 2,  iconNudge: '-1px', symbolClass: 'text-[#e07b2a]', badgeBg: '#e07b2a', badgeText: '#fff' },
-  { key: 'miss',       label: 'Miss',       Icon: MinusCircle,  iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#e05c2a]', badgeBg: '#e05c2a', badgeText: '#fff' },
-  { key: 'blunder',    label: 'Blunder',    Icon: XCircle,      iconSize: 18, strokeWidth: 2,   symbolClass: 'text-[#ca3431]', badgeBg: '#ca3431', badgeText: '#fff' },
+const ROWS: { key: Classification; label: string }[] = [
+  { key: 'brilliant',  label: 'Brilliant'  },
+  { key: 'great',      label: 'Great'      },
+  { key: 'book',       label: 'Book'       },
+  { key: 'best',       label: 'Best'       },
+  { key: 'excellent',  label: 'Excellent'  },
+  { key: 'good',       label: 'Good'       },
+  { key: 'inaccuracy', label: 'Inaccuracy' },
+  { key: 'mistake',    label: 'Mistake'    },
+  { key: 'miss',       label: 'Miss'       },
+  { key: 'blunder',    label: 'Blunder'    },
 ];
 
 function resolveName(name: string, fallback: string): string {
@@ -83,27 +71,27 @@ export function AccuracyCards({ whiteName, blackName, white, black, moves }: Pro
 
       {/* Classification rows */}
       <div className="divide-y divide-zinc-800/40">
-        {ROWS.map(({ key, label, Icon, iconSize, strokeWidth, iconNudge, symbolClass, badgeBg, badgeText }) => {
+        {ROWS.map(({ key, label }) => {
           const wCount = wCounts[key] ?? 0;
           const bCount = bCounts[key] ?? 0;
+          const color = CLASSIFICATION_COLOR[key];
           return (
             <div key={key} className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-2">
-              {/* White count */}
-              <span className={`text-base font-bold font-mono ${wCount > 0 ? symbolClass : 'text-white'}`}>
+              <span className="text-base font-bold font-mono" style={{ color: wCount > 0 ? color : 'white' }}>
                 {wCount}
               </span>
-              {/* Colored circle badge with label below */}
-              <div className="flex flex-col items-center px-6 min-w-[72px]">
+
+              <div className="flex flex-col items-center px-6 min-w-[80px] gap-1">
                 <span
                   className="w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: badgeBg, color: badgeText }}
+                  style={{ backgroundColor: color }}
                 >
-                  <Icon size={iconSize ?? 18} strokeWidth={strokeWidth ?? 2} style={iconNudge ? { marginTop: iconNudge } : undefined} />
+                  <ClassificationIcon classification={key} size={21} color="#fff" />
                 </span>
-                <span className="text-xs text-zinc-500 mt-1">{label}</span>
+                <span className="text-xs text-zinc-500">{label}</span>
               </div>
-              {/* Black count */}
-              <span className={`text-base font-bold font-mono text-right ${bCount > 0 ? symbolClass : 'text-white'}`}>
+
+              <span className="text-base font-bold font-mono text-right" style={{ color: bCount > 0 ? color : 'white' }}>
                 {bCount}
               </span>
             </div>

@@ -18,6 +18,8 @@ interface Props {
   onLoad: (pgn: string, result: AnalysisResult, reviewId: string) => void;
   onRerun: (pgn: string) => void;
   refreshKey: number;
+  creatingFolder: boolean;
+  onToggleCreatingFolder: () => void;
 }
 
 interface ContextMenu {
@@ -32,12 +34,11 @@ interface ConfirmDialog {
   onConfirm: () => void | Promise<void>;
 }
 
-export function LibraryPanel({ onLoad, onRerun, refreshKey }: Props) {
+export function LibraryPanel({ onLoad, onRerun, refreshKey, creatingFolder, onToggleCreatingFolder }: Props) {
   const [folders, setFolders]             = useState<SavedFolder[]>([]);
   const [reviews, setReviews]             = useState<SavedReview[]>([]);
   const [expanded, setExpanded]           = useState<Record<string, boolean>>({});
   const [newFolderName, setNewFolderName] = useState('');
-  const [creatingFolder, setCreatingFolder] = useState(false);
   const [contextMenu, setContextMenu]     = useState<ContextMenu | null>(null);
   const [confirm, setConfirm]             = useState<ConfirmDialog | null>(null);
   const [renaming, setRenaming]           = useState<{ id: string; value: string } | null>(null);
@@ -71,7 +72,7 @@ export function LibraryPanel({ onLoad, onRerun, refreshKey }: Props) {
     if (!name) return;
     const folder = await createFolder(name);
     setNewFolderName('');
-    setCreatingFolder(false);
+    onToggleCreatingFolder();
     await refresh();
     setExpanded((prev) => ({ ...prev, [folder.id]: true }));
   }
@@ -127,19 +128,7 @@ export function LibraryPanel({ onLoad, onRerun, refreshKey }: Props) {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 border-b border-zinc-800 shrink-0" style={{ height: 48 }}>
-        <span className="text-base font-bold text-white tracking-tight">Library</span>
-        <button
-          onClick={() => setCreatingFolder((v) => !v)}
-          className="text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
-          title={creatingFolder ? 'Cancel' : 'New folder'}
-        >
-          {creatingFolder ? <ChevronLeft size={18} /> : <Plus size={16} />}
-        </button>
-      </div>
-
-      {/* New folder input */}
+      {/* New folder input — shown when creatingFolder is true (toggled from drawer header) */}
       {creatingFolder && (
         <div className="px-4 py-2 border-b border-zinc-800 shrink-0 flex gap-2">
           <input
@@ -150,7 +139,7 @@ export function LibraryPanel({ onLoad, onRerun, refreshKey }: Props) {
             onChange={(e) => setNewFolderName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleCreateFolder();
-              if (e.key === 'Escape') setCreatingFolder(false);
+              if (e.key === 'Escape') onToggleCreatingFolder();
             }}
           />
           <button
