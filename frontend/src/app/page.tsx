@@ -2,9 +2,11 @@
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Chess } from 'chess.js';
-import { BookOpen, Check, Zap, Star, Award, TrendingUp, AlertCircle, AlertTriangle, MinusCircle, XCircle, Library, SkipBack, SkipForward, ChevronLeft, ChevronRight, Swords, ScrollText } from 'lucide-react';
+import { BookOpen, Library, SkipBack, SkipForward, ChevronLeft, ChevronRight, Swords, ScrollText, X, Plus } from 'lucide-react';
+import { ClassificationIcon, CLASSIFICATION_COLOR } from '@/components/ClassificationIcon';
+import { ToastProvider, useToast } from '@/components/Toast';
 import { MoveList } from '@/components/MoveList';
 import { EvalGraph } from '@/components/EvalGraph';
 import { AccuracyCards } from '@/components/AccuracyCards';
@@ -35,57 +37,44 @@ function classifyMove(scoreBefore: number, scoreAfter: number): Classification {
   return 'blunder';
 }
 
-type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>;
-
 interface TablebaseResult { category: string; dtm: number | null; dtz: number | null }
 
-const CLS_LABEL: Record<Classification, {
-  Icon: IconComponent;
-  strokeWidth?: number;
-  nudge?: string;
-  label: string;
-  textClass: string;
-  badgeBg: string;
-  badgeText: string;
-}> = {
-  book:       { Icon: BookOpen,      label: 'Book',       textClass: 'text-[#a0784a]', badgeBg: '#7c4e28', badgeText: '#f5dfc0', strokeWidth: 1.5 },
-  brilliant:  { Icon: Zap,           label: 'Brilliant',  textClass: 'text-[#1fada8]', badgeBg: '#1fada8', badgeText: '#fff' },
-  great:      { Icon: Award,         label: 'Great',      textClass: 'text-[#5c8fff]', badgeBg: '#5c8fff', badgeText: '#fff' },
-  best:       { Icon: Star,          label: 'Best',       textClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  excellent:  { Icon: TrendingUp,    label: 'Excellent',  textClass: 'text-[#6fbc5b]', badgeBg: '#6fbc5b', badgeText: '#fff' },
-  good:       { Icon: Check,         label: 'Good',       textClass: 'text-[#96bc4b]', badgeBg: '#96bc4b', badgeText: '#fff', strokeWidth: 3 },
-  inaccuracy: { Icon: AlertCircle,   label: 'Inaccuracy', textClass: 'text-[#f4bf00]', badgeBg: '#f4bf00', badgeText: '#fff' },
-  mistake:    { Icon: AlertTriangle, label: 'Mistake',    textClass: 'text-[#e07b2a]', badgeBg: '#e07b2a', badgeText: '#fff', nudge: '-1px' },
-  miss:       { Icon: MinusCircle,   label: 'Miss',       textClass: 'text-[#e05c2a]', badgeBg: '#e05c2a', badgeText: '#fff' },
-  blunder:    { Icon: XCircle,       label: 'Blunder',    textClass: 'text-[#ca3431]', badgeBg: '#ca3431', badgeText: '#fff' },
+const CLS_LABEL: Record<Classification, { label: string; textClass: string }> = {
+  book:       { label: 'Book',       textClass: 'text-[#a0784a]' },
+  brilliant:  { label: 'Brilliant',  textClass: 'text-[#1fada8]' },
+  great:      { label: 'Great',      textClass: 'text-[#5c8fff]' },
+  best:       { label: 'Best',       textClass: 'text-[#6fbc5b]' },
+  excellent:  { label: 'Excellent',  textClass: 'text-[#6fbc5b]' },
+  good:       { label: 'Good',       textClass: 'text-[#96bc4b]' },
+  inaccuracy: { label: 'Inaccuracy', textClass: 'text-[#f4bf00]' },
+  mistake:    { label: 'Mistake',    textClass: 'text-[#e07b2a]' },
+  miss:       { label: 'Miss',       textClass: 'text-[#e05c2a]' },
+  blunder:    { label: 'Blunder',    textClass: 'text-[#ca3431]' },
 };
 
-const SIDEBAR_W    = 208;  // w-52
-const LIBRARY_W    = 256;  // w-64
-const PLAY_PANEL_W = 220;
+const RAIL_W = 84;
 
-function useBoardSize(panelOpen: boolean, showEvalBar: boolean) {
+function useBoardSize(showEvalBar: boolean) {
   const [size, setSize] = useState(600);
   useEffect(() => {
     function calc() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       if (w < 768) {
-        // Mobile: subtract eval bar (w-7 = 28px) + gap (gap-2 = 8px) so board fits viewport
         const evalBarW = showEvalBar ? 36 : 0;
         setSize(Math.floor(Math.min(w - 8 - evalBarW, h * 0.54)));
         return;
       }
-      const extra  = panelOpen ? LIBRARY_W : 0;
+      // Library is now a floating overlay — doesn't affect workspace width
       const rightW = w * 0.25;
-      const fromWidth  = w - SIDEBAR_W - extra - rightW - 80;
+      const fromWidth  = w - RAIL_W - rightW - 80;
       const fromHeight = h - 160;
       setSize(Math.floor(Math.min(fromWidth, fromHeight)));
     }
     calc();
     window.addEventListener('resize', calc);
     return () => window.removeEventListener('resize', calc);
-  }, [panelOpen, showEvalBar]);
+  }, [showEvalBar]);
   return size;
 }
 
@@ -104,9 +93,10 @@ interface ExploreFrame {
 // ---------------------------------------------------------------------------
 // Right-panel states
 // ---------------------------------------------------------------------------
-type PanelState = 'menu' | 'paste' | 'analysis' | 'freeplay' | 'play' | 'repertoire';
+type PanelState = 'menu' | 'paste' | 'analysis' | 'freeplay' | 'play' | 'repertoire' | 'library';
 
-export default function Home() {
+function Home() {
+  const { toast } = useToast();
   const [result, setResult]           = useState<AnalysisResult | null>(null);
   const [currentReviewId, setCurrentReviewId] = useState<string | null>(null);
   const [loading, setLoading]         = useState(false);
@@ -148,7 +138,7 @@ export default function Home() {
   }, [result]);
 
   // Build fen→prepSan map for deviation detection in MoveList
-  const repertoirePrep = (() => {
+  const repertoirePrep = useMemo(() => {
     if (!result) return undefined;
     const map = new Map<string, string>();
     const normFen = (f: string) => f.split(' ').slice(0, 4).join(' ');
@@ -156,16 +146,17 @@ export default function Home() {
       map.set(normFen(m.fen), m.san);
     });
     return map.size > 0 ? map : undefined;
-  })();
+  }, [result, repertoireWhite, repertoireBlack]);
 
   // Library
-  const [libraryOpen, setLibraryOpen]   = useState(false);
-  const [saveModal, setSaveModal]        = useState(false);
-  const [saveFolderId, setSaveFolderId]  = useState('');
-  const [saveGameName, setSaveGameName]  = useState('');
-  const [libraryRefresh, setLibraryRefresh] = useState(0);
+  const [libraryCreatingFolder, setLibraryCreatingFolder] = useState(false);
+  const [saveModal, setSaveModal]              = useState(false);
+  const [saveFolderId, setSaveFolderId]        = useState('');
+  const [saveGameName, setSaveGameName]        = useState('');
+  const [libraryRefresh, setLibraryRefresh]    = useState(0);
 
-  const boardSize = useBoardSize(libraryOpen, showEvalBar);
+  const boardSize = useBoardSize(showEvalBar);
+  const gameLinesRef = useRef<import('@/types').TopLine[]>([]);
 
   // Progressive deepening — lines that update as Stockfish searches deeper
   const [deepLines, setDeepLines] = useState<TopLine[]>([]);
@@ -177,6 +168,12 @@ export default function Home() {
 
   // Animate board pieces only when a move is physically made (drag/click), not during navigation
   const [animatePieces, setAnimatePieces] = useState(false);
+
+  // Refs used by stable keyboard handler — avoids stale closures without re-subscribing
+  const _kbNavBackRef    = useRef<() => void>(() => {});
+  const _kbNavFwdRef     = useRef<() => void>(() => {});
+  const _kbExitRef       = useRef<() => void>(() => {});
+  const _kbExploringRef  = useRef(false);
 
   // ---------------------------------------------------------------------------
   // Analysis
@@ -248,6 +245,7 @@ export default function Home() {
   const gameFen       = gameMoveAtPly?.fen ?? result?.starting_fen ?? 'start';
   const gameEval      = gameMoveAtPly?.eval ?? 0;
   const gameLines     = gameMoveAtPly?.top_lines ?? result?.initial_lines ?? [];
+  gameLinesRef.current = gameLines;
   const gameLastMove  = gameMoveAtPly
     ? { from: gameMoveAtPly.from_sq, to: gameMoveAtPly.to_sq }
     : null;
@@ -415,6 +413,12 @@ export default function Home() {
   function deactivateExplore() {
     setExploreIdx(-1);
   }
+
+  // Keep keyboard-handler refs fresh every render
+  _kbNavBackRef.current   = navBack;
+  _kbNavFwdRef.current    = navForward;
+  _kbExitRef.current      = exitExplore;
+  _kbExploringRef.current = isExploring;
 
   // Build a PGN string from the current explore history up to the view cursor (for freeplay Review)
   function buildExploreAsPgn(): string {
@@ -668,6 +672,7 @@ export default function Home() {
     setCurrentReviewId(saved.id);
     setSaveModal(false);
     setLibraryRefresh((n) => n + 1);
+    toast('Game saved to library', 'success');
   }
 
   function handleLoadFromLibrary(loadPgn: string, loadResult: AnalysisResult, reviewId: string) {
@@ -675,16 +680,15 @@ export default function Home() {
     setResult(loadResult);
     setCurrentReviewId(reviewId);
     setIsQuickLoaded(false);
-    setSelectedPly(null);
+    const firstWithLines = loadResult.moves.find(m => (m.top_lines?.length ?? 0) > 0);
+    setSelectedPly(firstWithLines?.ply ?? loadResult.moves[0]?.ply ?? null);
     setExploreHistory([]);
     setExploreIdx(-1);
     setPanelState('analysis');
-    setLibraryOpen(false);
   }
 
   async function handleRerunFromLibrary(loadPgn: string) {
     setPgn(loadPgn);
-    setLibraryOpen(false);
     setPanelState('paste');
     // Small delay so the paste panel renders before we kick off analysis
     setTimeout(() => {
@@ -816,15 +820,11 @@ export default function Home() {
   // ---------------------------------------------------------------------------
   // Keyboard navigation
   // ---------------------------------------------------------------------------
-  const handleKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft')  navBack();
-      if (e.key === 'ArrowRight') navForward();
-      if (e.key === 'Escape' && isExploring) exitExplore();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [result, isExploring, exploreIdx, exploreHistory.length, selectedPly],
-  );
+  const handleKey = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft')  _kbNavBackRef.current();
+    if (e.key === 'ArrowRight') _kbNavFwdRef.current();
+    if (e.key === 'Escape' && _kbExploringRef.current) _kbExitRef.current();
+  }, []); // stable — reads fresh state via refs
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey);
@@ -836,9 +836,9 @@ export default function Home() {
   // Game moves already have depth-20 lines from batch analysis.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    // For fully-analyzed games: use pre-computed lines, no live engine needed.
-    // For quick-loaded or explore mode (or play mode): run progressive deepening.
-    if (!isExploring && result && !isQuickLoaded && !inPlayMode) {
+    // For fully-analyzed games with precomputed lines: no live engine needed.
+    // Fall through to deepening for book moves or positions missing top_lines.
+    if (!isExploring && result && !isQuickLoaded && !inPlayMode && gameLinesRef.current.length > 0) {
       setDeepLines([]);
       setDeepDepth(null);
       return;
@@ -949,65 +949,36 @@ export default function Home() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-black text-white">
 
-      {/* ── Sidebar (desktop only) ── */}
-      <div className="hidden md:flex sticky top-0 h-screen w-52 shrink-0 flex-col border-r border-zinc-800 bg-black z-20">
-        {/* Branding */}
-        <div className="flex items-center justify-center gap-2.5 px-5 border-b border-zinc-800" style={{ height: 48 }}>
-          <span className="text-white font-bold text-base tracking-tight">mic7aelr<span className="text-white">/</span>chess</span>
+      {/* ── Left rail (desktop only) ── */}
+      <div
+        className="hidden md:flex sticky top-0 h-screen w-[96px] shrink-0 flex-col border-r z-20"
+        style={{ backgroundColor: 'var(--bg-0)', borderColor: 'var(--line-strong)' }}
+      >
+        {/* Logo mark */}
+        <div
+          className="flex flex-col items-center justify-center border-b shrink-0 select-none gap-0.5"
+          style={{ height: 56, borderColor: 'var(--line-strong)' }}
+        >
+          <span className="text-lg leading-none">♟</span>
+          <span className="text-[10px] text-zinc-500 font-mono leading-none tracking-tight">mic7aelr/chess</span>
         </div>
-        {/* Nav tabs */}
-        <div className="flex flex-col pt-3 px-2 gap-0.5">
-          <SidebarTab
-            icon={<Swords size={18} />}
-            label="Play"
+        {/* Nav icons */}
+        <div className="flex flex-col pt-2 px-1.5 gap-0.5">
+          <RailBtn icon={<Swords size={23} strokeWidth={1.5} />} label="Play"
             active={panelState === 'play'}
-            onClick={() => { setLibraryOpen(false); setPanelState('play'); }}
-          />
-          <SidebarTab
-            icon={<BookOpen size={18} />}
-            label="Analysis"
+            onClick={() => setPanelState('play')} />
+          <RailBtn icon={<BookOpen size={23} strokeWidth={1.5} />} label="Analysis"
             active={panelState === 'paste' || panelState === 'analysis'}
-            onClick={() => { setLibraryOpen(false); setPanelState(result ? 'analysis' : 'paste'); }}
-          />
-          <SidebarTab
-            icon={<Library size={18} />}
-            label="Library"
-            active={libraryOpen}
-            onClick={() => { setLibraryOpen((o) => !o); setPanelState('menu'); }}
-          />
-          <SidebarTab
-            icon={<ScrollText size={18} />}
-            label="Repertoire"
+            onClick={() => setPanelState(result ? 'analysis' : 'paste')} />
+          <RailBtn icon={<Library size={23} strokeWidth={1.5} />} label="Library"
+            active={panelState === 'library'}
+            onClick={() => setPanelState('library')} />
+          <RailBtn icon={<ScrollText size={23} strokeWidth={1.5} />} label="Repertoire"
             active={panelState === 'repertoire'}
-            onClick={() => { setLibraryOpen(false); setPanelState('repertoire'); }}
-          />
+            onClick={() => setPanelState('repertoire')} />
         </div>
       </div>
 
-      {/* ── Library panel (slides in next to sidebar on desktop; full-screen overlay on mobile) ── */}
-      <div
-        className={`top-0 h-screen shrink-0 flex flex-col border-r border-zinc-800 bg-[#0e0e0e] overflow-hidden transition-all duration-200 z-50 ${
-          libraryOpen
-            ? 'fixed inset-0 md:sticky md:inset-auto w-full md:w-64'
-            : 'hidden md:flex md:sticky'
-        }`}
-        style={libraryOpen ? {} : { width: 0 }}
-      >
-        {/* Mobile close button */}
-        {libraryOpen && (
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 md:hidden shrink-0">
-            <span className="text-sm font-semibold text-zinc-300">Library</span>
-            <button onClick={() => setLibraryOpen(false)} className="text-zinc-500 hover:text-white transition-colors cursor-pointer text-lg leading-none">✕</button>
-          </div>
-        )}
-        <div className="w-full md:w-64 h-full min-h-0">
-          <LibraryPanel
-            onLoad={handleLoadFromLibrary}
-            onRerun={handleRerunFromLibrary}
-            refreshKey={libraryRefresh}
-          />
-        </div>
-      </div>
 
       {/* ── Repertoire: full-width panel, replaces board + right panel ── */}
       {panelState === 'repertoire' && (
@@ -1017,7 +988,7 @@ export default function Home() {
       )}
 
       {/* ── Left column: board ── */}
-      <div className={`flex flex-col relative w-full md:flex-1 md:shrink-0 md:sticky md:top-0 md:h-screen ${panelState !== 'play' ? 'border-b md:border-b-0 md:border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`}>
+      <div className={`flex flex-col relative w-full md:flex-1 md:shrink-0 md:sticky md:top-0 md:h-screen ${panelState !== 'play' ? 'border-b md:border-b-0 md:border-r border-zinc-800' : ''} ${panelState === 'repertoire' ? 'hidden' : ''}`} style={{ borderColor: 'var(--line-strong)' }}>
 
         {/* Board: centred in available space on desktop; natural size on mobile */}
         <div className="md:flex-1 flex items-center justify-center">
@@ -1046,19 +1017,14 @@ export default function Home() {
               badgeScale={!isExploring && gameMoveAtPly?.classification === 'miss' ? 1.4 : 1}
               badge={!isExploring && gameMoveAtPly?.classification ? (() => {
                 const isMiss = gameMoveAtPly.classification === 'miss';
-                const cls    = CLS_LABEL[gameMoveAtPly.classification];
                 const badgePx = (boardSize / 8) * 0.35 * (isMiss ? 1.4 : 1);
-                const iconPx  = Math.round(badgePx * 0.55);
+                const iconPx  = Math.round(badgePx * 0.6);
                 return (
                   <span
                     className="w-full h-full rounded-full flex items-center justify-center shadow-md"
-                    style={{ backgroundColor: cls.badgeBg, color: cls.badgeText }}
+                    style={{ backgroundColor: CLASSIFICATION_COLOR[gameMoveAtPly.classification] }}
                   >
-                    <cls.Icon
-                      size={iconPx}
-                      strokeWidth={cls.strokeWidth ?? 2}
-                      style={cls.nudge ? { marginTop: cls.nudge } : undefined}
-                    />
+                    <ClassificationIcon classification={gameMoveAtPly.classification} size={iconPx} color="#fff" />
                   </span>
                 );
               })() : undefined}
@@ -1283,7 +1249,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Right column: 25% — 3-state panel ── */}
+      {/* ── Right column: 25% — panel ── */}
       {panelState !== 'play' && panelState !== 'repertoire' && <div className="w-full md:w-1/4 flex flex-col md:h-screen border-t md:border-t-0 md:border-l border-zinc-800 pb-14 md:pb-0">
 
         {/* ── Nav bar — shown in analysis mode above engine lines ── */}
@@ -1304,13 +1270,15 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Engine analysis ── */}
-        <div className="shrink-0 border-b border-zinc-800 px-3 py-3">
-          {displayLines.length > 0
-            ? <EngineLines lines={displayLines} isWhiteToMove={displayIsWhiteToMove} depth={deepDepth ?? (!isExploring && result ? 18 : undefined)} />
-            : <p className="text-xs text-zinc-600 py-2 text-center">Analysing position…</p>
-          }
-        </div>
+        {/* ── Engine analysis — hidden in library/paste/menu states ── */}
+        {panelState !== 'library' && panelState !== 'paste' && panelState !== 'menu' && (
+          <div className="shrink-0 border-b border-zinc-800 px-3 py-3">
+            {displayLines.length > 0
+              ? <EngineLines lines={displayLines} isWhiteToMove={displayIsWhiteToMove} depth={deepDepth ?? (!isExploring && result ? 18 : undefined)} />
+              : <p className="text-xs text-zinc-600 py-2 text-center">Analysing position…</p>
+            }
+          </div>
+        )}
 
         {/* ── Tablebase result ── */}
         {tablebase && (() => {
@@ -1356,6 +1324,31 @@ export default function Home() {
         })()}
 
         {/* ── STATE: menu ── (empty landing) */}
+
+        {/* ── STATE: library ── */}
+        {panelState === 'library' && (
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex items-center justify-between px-4 shrink-0 border-b border-zinc-800" style={{ height: 48 }}>
+              <span className="text-sm font-semibold" style={{ color: 'var(--fg-1)' }}>Library</span>
+              <button
+                onClick={() => setLibraryCreatingFolder((v) => !v)}
+                className="text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                title={libraryCreatingFolder ? 'Cancel' : 'New folder'}
+              >
+                {libraryCreatingFolder ? <X size={16} strokeWidth={1.5} /> : <Plus size={16} strokeWidth={1.5} />}
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <LibraryPanel
+                onLoad={handleLoadFromLibrary}
+                onRerun={handleRerunFromLibrary}
+                refreshKey={libraryRefresh}
+                creatingFolder={libraryCreatingFolder}
+                onToggleCreatingFolder={() => setLibraryCreatingFolder((v) => !v)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── STATE: freeplay ── */}
         {panelState === 'freeplay' && (
@@ -1589,10 +1582,10 @@ export default function Home() {
       {/* ── Mobile bottom nav (hidden on md+) ── */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-black border-t border-zinc-800 flex items-stretch z-40">
         {([
-          { label: 'Play',       icon: <Swords size={19} />,     active: panelState === 'play' && !libraryOpen,         onClick: () => { setLibraryOpen(false); setPanelState('play'); } },
-          { label: 'Analysis',   icon: <BookOpen size={19} />,   active: (panelState === 'paste' || panelState === 'analysis') && !libraryOpen, onClick: () => { setLibraryOpen(false); setPanelState(result ? 'analysis' : 'paste'); } },
-          { label: 'Library',    icon: <Library size={19} />,    active: libraryOpen,                                   onClick: () => { setLibraryOpen((o) => !o); if (!libraryOpen) setPanelState('menu'); } },
-          { label: 'Repertoire', icon: <ScrollText size={19} />, active: panelState === 'repertoire' && !libraryOpen,   onClick: () => { setLibraryOpen(false); setPanelState('repertoire'); } },
+          { label: 'Play',       icon: <Swords size={19} />,     active: panelState === 'play',                                    onClick: () => setPanelState('play') },
+          { label: 'Analysis',   icon: <BookOpen size={19} />,   active: panelState === 'paste' || panelState === 'analysis',       onClick: () => setPanelState(result ? 'analysis' : 'paste') },
+          { label: 'Library',    icon: <Library size={19} />,    active: panelState === 'library',                                  onClick: () => setPanelState('library') },
+          { label: 'Repertoire', icon: <ScrollText size={19} />, active: panelState === 'repertoire',                               onClick: () => setPanelState('repertoire') },
         ] as const).map(({ label, icon, active, onClick }) => (
           <button
             key={label}
@@ -1717,6 +1710,31 @@ function SidebarTab({ icon, label, active, onClick }: { icon: React.ReactNode; l
   );
 }
 
+function RailBtn({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className={`w-full flex flex-col items-center justify-center gap-0.5 rounded-md py-1.5 transition-colors cursor-pointer ${
+        active
+          ? 'bg-zinc-800 text-white'
+          : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50'
+      }`}
+    >
+      {icon}
+      <span className="text-[8px] font-medium tracking-wide leading-none">{label}</span>
+    </button>
+  );
+}
+
+export default function Page() {
+  return (
+    <ToastProvider>
+      <Home />
+    </ToastProvider>
+  );
+}
+
 function NavBtn({
   onClick, title, children,
 }: { onClick: () => void; title: string; children: React.ReactNode }) {
@@ -1832,10 +1850,10 @@ function ClassificationSummary({ moves }: { moves: MoveEval[] }) {
           <div key={cls} className="grid grid-cols-[1fr_28px_1fr] items-center gap-x-2 py-0.5">
             <span className={`text-xs text-right font-mono ${w > 0 ? 'text-zinc-200' : 'text-zinc-700'}`}>{w}</span>
             <span
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-              style={{ backgroundColor: info.badgeBg, color: info.badgeText }}
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: CLASSIFICATION_COLOR[cls] }}
             >
-              <info.Icon size={11} strokeWidth={info.strokeWidth ?? 2.5} style={info.nudge ? { marginTop: info.nudge } : undefined} />
+              <ClassificationIcon classification={cls} size={13} color="#fff" />
             </span>
             <span className={`text-xs font-mono ${b > 0 ? 'text-zinc-200' : 'text-zinc-700'}`}>{b}</span>
           </div>

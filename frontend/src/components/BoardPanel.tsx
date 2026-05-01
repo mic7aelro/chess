@@ -1,10 +1,10 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Chess, type Square, type Move } from 'chess.js';
 import { EvalBar } from './EvalBar';
-import { customPieces, boardBackgroundUri } from '../lib/pieces';
+import { customPieces } from '../lib/pieces';
 
 const Chessboard = dynamic(
   () => import('react-chessboard').then((m) => m.Chessboard),
@@ -40,7 +40,6 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
   const [legalTargets, setLegalTargets] = useState<{ sq: string; capture: boolean }[]>([]);
   const [rightClicked, setRightClicked] = useState<Record<string, boolean>>({});
 
-  // Clear selection + right-click highlights whenever position changes
   useEffect(() => {
     setSelectedSquare(null);
     setLegalTargets([]);
@@ -60,9 +59,7 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
   }
 
   function handleSquareClick({ square }: { square: string }) {
-    // Clear any right-click highlights on left-click
     setRightClicked({});
-
     const target = legalTargets.find((t) => t.sq === square);
     if (selectedSquare && target) {
       const accepted = onPieceDrop(selectedSquare, square);
@@ -83,58 +80,42 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
     setRightClicked((prev) => ({ ...prev, [square]: !prev[square] }));
   }
 
-  // Build square styles
-  const squareStyles: Record<string, React.CSSProperties> = {};
+  const squareStyles = useMemo<Record<string, React.CSSProperties>>(() => {
+    const styles: Record<string, React.CSSProperties> = {};
 
-  // Last-move: bright yellow-green that stands out on both light and dark squares
-  if (lastMove) {
-    squareStyles[lastMove.from] = { backgroundColor: 'rgba(172,206,89,0.75)' };
-    squareStyles[lastMove.to]   = { backgroundColor: 'rgba(172,206,89,0.95)' };
-  }
+    if (lastMove) {
+      styles[lastMove.from] = { backgroundColor: 'rgba(172,206,89,0.75)' };
+      styles[lastMove.to]   = { backgroundColor: 'rgba(172,206,89,0.95)' };
+    }
 
-  // Selected piece highlight
-  if (selectedSquare) {
-    squareStyles[selectedSquare] = { backgroundColor: 'rgba(255,255,0,0.45)' };
-  }
+    if (selectedSquare) {
+      styles[selectedSquare] = { backgroundColor: 'rgba(255,255,0,0.45)' };
+    }
 
-  // Legal move dots / capture rings
-  for (const { sq, capture } of legalTargets) {
-    squareStyles[sq] = capture
-      ? { background: 'radial-gradient(circle, transparent 58%, rgba(0,0,0,0.20) 58%)', borderRadius: '0' }
-      : { background: 'radial-gradient(circle, rgba(0,0,0,0.18) 26%, transparent 26%)' };
-  }
+    for (const { sq, capture } of legalTargets) {
+      styles[sq] = capture
+        ? { background: 'radial-gradient(circle, transparent 58%, rgba(0,0,0,0.20) 58%)', borderRadius: '0' }
+        : { background: 'radial-gradient(circle, rgba(0,0,0,0.18) 26%, transparent 26%)' };
+    }
 
-  // Right-click red highlights (applied last so they override)
-  for (const [sq, active] of Object.entries(rightClicked)) {
-    if (active) squareStyles[sq] = { backgroundColor: 'rgba(220,50,50,0.55)' };
-  }
+    for (const [sq, active] of Object.entries(rightClicked)) {
+      if (active) styles[sq] = { backgroundColor: 'rgba(220,50,50,0.55)' };
+    }
+
+    return styles;
+  }, [lastMove, selectedSquare, legalTargets, rightClicked]);
 
   return (
-    <div className="flex gap-2 items-start shrink-0">
+    <div className="flex items-stretch shrink-0">
       {showEvalBar && <EvalBar eval={evalCp} height={BOARD_SIZE} orientation={orientation} />}
-      <div style={{ width: BOARD_SIZE, height: BOARD_SIZE, colorScheme: 'light' }} className="relative">
-        {/* Checkerboard rendered as <img>, not CSS background-image — iOS Safari
-            applies dark-mode color adjustments to background-image SVGs but
-            leaves <img> content alone. */}
-        <img
-          src={boardBackgroundUri}
-          alt=""
-          draggable={false}
-          aria-hidden
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            borderRadius: '4px',
-            pointerEvents: 'none',
-            zIndex: 0,
-          }}
-        />
+      <div
+        style={{ width: BOARD_SIZE, height: BOARD_SIZE, colorScheme: 'light' }}
+        className="relative"
+      >
         {badge && lastMove && (() => {
           const sq = lastMove.to;
-          const fileIdx = sq.charCodeAt(0) - 97;       // a=0 … h=7
-          const rankIdx = parseInt(sq[1]) - 1;          // 1=0 … 8=7
+          const fileIdx = sq.charCodeAt(0) - 97;
+          const rankIdx = parseInt(sq[1]) - 1;
           const sqSize  = BOARD_SIZE / 8;
           const col = orientation === 'white' ? fileIdx     : 7 - fileIdx;
           const row = orientation === 'white' ? 7 - rankIdx : rankIdx;
@@ -155,17 +136,16 @@ export function BoardPanel({ fen, lastMove, evalCp, orientation, onPieceDrop, si
             position: normaliseFen(fen),
             boardOrientation: orientation,
             squareStyles,
-            // Squares are transparent — all color comes from the <img> behind the board
-            darkSquareStyle: { backgroundColor: 'transparent' },
-            lightSquareStyle: { backgroundColor: 'transparent' },
+            darkSquareStyle:  { backgroundColor: '#769656' },
+            lightSquareStyle: { backgroundColor: '#eeeed2' },
             boardStyle: {
-              borderRadius: '4px',
+              borderRadius: showEvalBar ? '0 var(--r-sm) var(--r-sm) 0' : 'var(--r-sm)',
               position: 'relative',
               zIndex: 1,
             } as React.CSSProperties,
-            alphaNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
-            numericNotationStyle: { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
-            darkSquareNotationStyle: { color: '#eeeed2' },
+            alphaNotationStyle:       { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
+            numericNotationStyle:     { fontSize: `${Math.round(BOARD_SIZE / 8 * 0.20)}px`, fontWeight: 'bold' },
+            darkSquareNotationStyle:  { color: '#eeeed2' },
             lightSquareNotationStyle: { color: '#769656' },
             pieces: customPieces,
             allowDragging: true,

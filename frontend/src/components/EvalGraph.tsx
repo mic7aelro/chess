@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -36,15 +36,14 @@ function formatEval(cp: number): string {
   return (cp >= 0 ? '+' : '') + (cp / 100).toFixed(2);
 }
 
-// Left/right margin that Recharts applies inside the SVG (matches margin prop)
-const CHART_MARGIN_LEFT  = 0;  // left: -20 shifts axis labels, but plot area starts ~0
+const CHART_MARGIN_LEFT  = 0;
 const CHART_MARGIN_RIGHT = 4;
 
 export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const data: DataPoint[] = [
+  const data = useMemo<DataPoint[]>(() => [
     { ply: 0, label: 'Start', eval: 0, clampedEval: 0 },
     ...moves.map((m) => ({
       ply: m.ply,
@@ -52,7 +51,7 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
       eval: m.eval,
       clampedEval: clamp(m.eval),
     })),
-  ];
+  ], [moves]);
 
   function idxFromMouseX(clientX: number): number {
     if (!overlayRef.current) return 0;
@@ -66,7 +65,10 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
   const hoverPoint = hoverIdx !== null ? data[hoverIdx] : null;
 
   return (
-    <div className="bg-[#141414] border border-zinc-800 rounded-lg p-4">
+    <div
+      className="border rounded-lg p-4"
+      style={{ backgroundColor: 'var(--bg-2)', borderColor: 'var(--line-strong)' }}
+    >
       <p className="text-xs text-zinc-500 uppercase tracking-widest mb-3">Evaluation</p>
       <div className="relative">
         <ResponsiveContainer width="100%" height={140}>
@@ -89,7 +91,6 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
             <YAxis domain={[-800, 800]} hide />
             <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
 
-            {/* Selected ply marker */}
             {selectedPly !== null && (() => {
               const pt = data.find(d => d.ply === selectedPly);
               return pt ? (
@@ -100,12 +101,10 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
               ) : null;
             })()}
 
-            {/* Hover ply marker */}
             {hoverPoint && hoverPoint.ply !== selectedPly && (
               <ReferenceLine x={hoverPoint.ply} stroke="#71717a" strokeWidth={1} />
             )}
 
-            {/* Suppress default Recharts tooltip — we render our own */}
             <Tooltip content={() => null} />
 
             <Area
@@ -114,7 +113,8 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
               stroke="#e4e4e7"
               strokeWidth={1.5}
               fill="url(#white-grad)"
-              isAnimationActive={false}
+              isAnimationActive
+              animationDuration={200}
             />
             <Area
               type="monotone"
@@ -122,12 +122,12 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
               stroke="#52525b"
               strokeWidth={1.5}
               fill="url(#black-grad)"
-              isAnimationActive={false}
+              isAnimationActive
+              animationDuration={200}
             />
           </AreaChart>
         </ResponsiveContainer>
 
-        {/* Transparent overlay — owns all pointer events */}
         <div
           ref={overlayRef}
           className="absolute inset-0 cursor-pointer"
@@ -140,7 +140,6 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
           }}
         />
 
-        {/* Custom tooltip rendered above overlay */}
         {hoverPoint && (
           <div
             className="absolute top-1 pointer-events-none bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs z-10"
@@ -150,7 +149,7 @@ export function EvalGraph({ moves, selectedPly, onSelectPly }: Props) {
             }}
           >
             <p className="text-zinc-400">{hoverPoint.label}</p>
-            <p className="text-white font-mono">{formatEval(hoverPoint.eval)}</p>
+            <p className="tnum text-white font-mono">{formatEval(hoverPoint.eval)}</p>
           </div>
         )}
       </div>

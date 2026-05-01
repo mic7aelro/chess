@@ -1,23 +1,80 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  /* "only light" tells iOS Safari: never apply dark-mode color adjustments,
-     regardless of user OS setting. All colors are explicit in this app. */
-  color-scheme: only light;
+  /* Surfaces */
+  --bg-0: #08090b;
+  --bg-1: #101216;
+  --bg-2: #181b21;
+  --bg-3: #22262e;
+
+  /* Text */
+  --fg-0: #f5f6f8;
+  --fg-1: #b6bac3;
+  --fg-2: #7a808c;
+  --fg-3: #4a505b;
+
+  /* Accent */
+  --accent: #7c93ff;
+  --accent-soft: #7c93ff22;
+
+  /* Borders */
+  --line: #ffffff0d;
+  --line-strong: #ffffff14;
+
+  /* Classification colours */
+  --c-brilliant: #1fada8;
+  --c-great: #5c8fff;
+  --c-best: #6fbc5b;
+  --c-excellent: #6fbc5b;
+  --c-good: #96bc4b;
+  --c-inaccuracy: #f4bf00;
+  --c-mistake: #e07b2a;
+  --c-miss: #e05c2a;
+  --c-blunder: #ca3431;
+  --c-book: #a0784a;
+
+  /* Radii */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 0 #ffffff0a inset, 0 8px 24px -12px #000;
+
+  /* Motion */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 280ms;
+
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg-0: var(--bg-0);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-bg-3: var(--bg-3);
+  --color-fg-0: var(--fg-0);
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-accent: var(--accent);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  font-family: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
 }
 
+/* Numeric tabular figures everywhere a number sits next to text */
+.tnum {
+  font-feature-settings: 'tnum', 'ss01';
+}

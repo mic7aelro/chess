@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, memo } from 'react';
 import { defaultPieces } from 'react-chessboard';
 import type { TopLine } from '@/types';
 
@@ -18,7 +18,6 @@ function formatEval(cp: number): string {
   return (cp >= 0 ? '+' : '') + (cp / 100).toFixed(2);
 }
 
-// Always from White's perspective so the color doesn't flip every move
 function evalBadgeClass(cp: number): string {
   if (cp > 150)  return 'bg-white text-black';
   if (cp > 20)   return 'bg-zinc-200 text-zinc-900';
@@ -56,18 +55,17 @@ function MoveToken({ san, isWhite }: { san: string; isWhite: boolean }) {
   );
 }
 
-const GAP = 6;    // px — matches gap-x-1.5
-const BTN = 28;   // px — width reserved for the ▼ button (including its own padding)
+const GAP = 6;
+const BTN = 28;
 
-function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolean }) {
+const LineRow = memo(function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolean }) {
   const measureRef = useRef<HTMLDivElement>(null);
   const wrapRef    = useRef<HTMLDivElement>(null);
-  const [cutAt, setCutAt]     = useState<number | null>(null);
+  const [cutAt, setCutAt]       = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const moves = line.moves?.length ? line.moves : [line.san];
 
-  // Measure using the hidden div (always contains all moves)
   useLayoutEffect(() => {
     if (expanded) { setCutAt(null); return; }
     const measure = measureRef.current;
@@ -81,7 +79,7 @@ function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolea
       w += items[i].offsetWidth + (i > 0 ? GAP : 0);
       if (w > available) { setCutAt(i); return; }
     }
-    setCutAt(null); // all moves fit
+    setCutAt(null);
   }, [moves.join(','), expanded]);
 
   const hasMore = cutAt !== null;
@@ -90,16 +88,11 @@ function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolea
   return (
     <div className="px-3 py-2 border-b border-zinc-800 last:border-b-0">
       <div className="flex items-center gap-2 min-w-0">
-
-        {/* Eval badge */}
-        <span className={`font-mono text-[11px] px-1.5 py-0.5 rounded shrink-0 font-bold ${evalBadgeClass(line.eval)}`}>
+        <span className={`tnum font-mono text-[11px] px-1.5 py-0.5 rounded shrink-0 font-bold ${evalBadgeClass(line.eval)}`}>
           {formatEval(line.eval)}
         </span>
 
-        {/* Moves area */}
         <div ref={wrapRef} className="relative flex-1 min-w-0 overflow-hidden">
-
-          {/* Hidden measurement div — always renders ALL moves */}
           <div
             ref={measureRef}
             className="absolute top-0 left-0 right-0 flex items-center gap-x-1.5 invisible pointer-events-none"
@@ -110,7 +103,6 @@ function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolea
             ))}
           </div>
 
-          {/* Visible moves */}
           <div className={`flex items-center gap-x-1.5 text-white text-xs ${expanded ? 'flex-wrap gap-y-1' : ''}`}>
             {visible.map((san, j) => (
               <MoveToken key={j} san={san} isWhite={isWhiteToMove ? j % 2 === 0 : j % 2 === 1} />
@@ -119,7 +111,6 @@ function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolea
           </div>
         </div>
 
-        {/* Toggle — same padding on both sides */}
         {(hasMore || expanded) && (
           <button
             onClick={() => setExpanded(p => !p)}
@@ -132,24 +123,26 @@ function LineRow({ line, isWhiteToMove }: { line: TopLine; isWhiteToMove: boolea
       </div>
     </div>
   );
-}
+});
 
 export function EngineLines({ lines, isWhiteToMove, depth }: Props) {
   if (!lines.length) return null;
 
   return (
     <div className="rounded-lg overflow-hidden border border-zinc-700 text-xs">
-      {/* Header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-800 border-b border-zinc-700">
         <span className="text-zinc-300 uppercase tracking-widest text-[10px] font-semibold">
           Analysis
         </span>
-        <span className="text-zinc-400 font-mono text-[10px]">
-          {depth != null ? `depth ${depth}` : <span className="text-zinc-600">searching…</span>}
-        </span>
+        {depth != null ? (
+          <span className="tnum font-mono text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+            d{depth}
+          </span>
+        ) : (
+          <span className="text-zinc-600 text-[10px]">searching…</span>
+        )}
       </div>
 
-      {/* Lines */}
       <div className="bg-zinc-900">
         {lines.map((line, i) => (
           <LineRow key={i} line={line} isWhiteToMove={isWhiteToMove} />

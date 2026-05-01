@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from 'react';
 import type { AnalysisResult, Classification, MoveEval } from '@/types';
+import { ClassificationIcon, CLASSIFICATION_COLOR } from './ClassificationIcon';
 
 export interface ExploreMoveData {
   san: string;
@@ -35,18 +36,7 @@ function evalColor(cp: number): string {
   return 'text-zinc-500';
 }
 
-const CLASSIFICATION_STYLE: Record<Classification, { symbol: string; className: string }> = {
-  book:       { symbol: '○',  className: 'text-[#a0784a]' },
-  brilliant:  { symbol: '⚡', className: 'text-[#1fada8]' },
-  great:      { symbol: '◎',  className: 'text-[#5c8fff]' },
-  best:       { symbol: '★',  className: 'text-[#6fbc5b]' },
-  excellent:  { symbol: '↑',  className: 'text-[#6fbc5b]' },
-  good:       { symbol: '✓',  className: 'text-[#96bc4b]' },
-  inaccuracy: { symbol: '?!', className: 'text-[#f4bf00]' },
-  mistake:    { symbol: '?',  className: 'text-[#e07b2a]' },
-  miss:       { symbol: '−',  className: 'text-[#e05c2a]' },
-  blunder:    { symbol: '??', className: 'text-[#ca3431]' },
-};
+const SHOW_ICON = new Set<Classification>(['brilliant', 'great', 'book', 'blunder']);
 
 function normFen(fen: string) {
   return fen.split(' ').slice(0, 4).join(' ');
@@ -114,13 +104,10 @@ export function MoveList({ result, selectedPly, onSelectPly, exploreMoves, branc
   );
 }
 
-const SHOW_SYMBOL = new Set<Classification>(['book', 'brilliant', 'miss', 'blunder']);
-
 function MoveColumn({
   move, selected, onSelect, showEval, prepSan,
 }: { move: MoveEval; selected: boolean; onSelect: (ply: number | null) => void; showEval: boolean; prepSan?: string }) {
-  const cls = move.classification ? CLASSIFICATION_STYLE[move.classification] : null;
-  const showSymbol = move.classification && SHOW_SYMBOL.has(move.classification) && cls?.symbol;
+  const showIcon = move.classification && SHOW_ICON.has(move.classification);
   // Out of prep: position was in repertoire but played move differs
   const outOfPrep = prepSan != null && !move.is_book && move.san !== prepSan;
   return (
@@ -133,8 +120,10 @@ function MoveColumn({
     >
       <div className="flex items-center gap-1 min-w-0">
         <span className="font-mono">{move.san}</span>
-        {showSymbol && (
-          <span className={`text-xs font-bold shrink-0 ${cls?.className}`}>{cls?.symbol}</span>
+        {showIcon && move.classification && (
+          <span className="shrink-0 flex items-center">
+            <ClassificationIcon classification={move.classification} size={14} />
+          </span>
         )}
         {outOfPrep && (
           <span className="text-[10px] font-semibold text-amber-400/80 shrink-0" title={`Prep: ${prepSan}`}>
@@ -175,7 +164,6 @@ function ExploreBranch({
           const isWhite = ply % 2 === 1;
           const showNum = i === 0 || isWhite;
           const isActive = activeIdx === i;
-          const cls = m.classification ? CLASSIFICATION_STYLE[m.classification] : null;
           return (
             <span key={i} className="flex items-center gap-0.5">
               {showNum && (
@@ -191,8 +179,10 @@ function ExploreBranch({
               >
                 {m.san}
               </button>
-              {cls?.symbol && (
-                <span className={`text-[10px] font-bold ${cls.className}`}>{cls.symbol}</span>
+              {m.classification && SHOW_ICON.has(m.classification) && (
+                <span className="flex items-center">
+                  <ClassificationIcon classification={m.classification} size={11} />
+                </span>
               )}
             </span>
           );
